@@ -8,10 +8,9 @@ pub struct CompUnit {
 }
 ///为CompUnit结构体实现Display trait
 impl fmt::Display for CompUnit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        print!("{}", self.func_def);
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(_f, "{}", self.func_def)
         // 由于 fmt 方法的返回类型是 fmt::Result，因此我们需要手动返回 Ok(())
-        Ok(())
     }
 }
 
@@ -24,12 +23,11 @@ pub struct FuncDef {
 }
 /// 为 FuncDef 结构体实现 Display trait
 impl fmt::Display for FuncDef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        print!("fun @{}(): {}", self.ident, self.func_type);
-        print!(" ");
-        print!("{}", self.block);
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(_f, "fun @{}(): {}", self.ident, self.func_type)?;
+        write!(_f, " ")?;
+        write!(_f, "{}", self.block)
         // 由于 fmt 方法的返回类型是 fmt::Result，因此我们需要手动返回 Ok(())
-        Ok(())
     }
 }
 
@@ -41,9 +39,8 @@ pub enum FuncType {
 }
 // 为 FuncType 结构体实现 Display trait
 impl fmt::Display for FuncType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        print!("i32");
-        Ok(())
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(_f, "i32")
     }
 }
 
@@ -54,12 +51,11 @@ pub struct Block {
 }
 /// 为 Block 结构体实现 Display trait
 impl fmt::Display for Block {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        println!("{{");
-        println!("%entry:");
-        print!("{}", self.stmt);
-        println!("}}\n");
-        Ok(())
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(_f, "{{\n")?;
+        write!(_f, "%entry:\n")?;
+        write!(_f, "{}", self.stmt)?;
+        write!(_f, "}}\n")
     }
 }
 
@@ -70,8 +66,7 @@ pub struct Stmt {
 }
 /// 为 Stmt 结构体实现 Display trait
 impl fmt::Display for Stmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        print!("    ret {}\n", self.num);
-        Ok(())
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(_f, "    ret {}\n", self.num)
     }
 }
