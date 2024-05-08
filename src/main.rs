@@ -26,12 +26,15 @@ fn main() -> Result<()> {
     let ast = sysy::CompUnitParser::new().parse(&input).unwrap();
 
     // 输出解析得到的 AST
+    let my_koppa_ir = format!("{}", ast);
+
     if mode == "-koopa" {
         //println!("{}", ast);
-
-        let my_koppa_ir = format!("{}", ast);
         let mut file = File::create(output)?;
         file.write_all(my_koppa_ir.as_bytes())?;
+    } else {
+        let driver = koopa::front::Driver::from(my_koppa_ir);
+        let program = driver.generate_program().unwrap();
     }
     Ok(())
 }
