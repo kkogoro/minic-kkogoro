@@ -1,5 +1,7 @@
 //! 基础的AST定义
 
+use koopa::ir::values::Binary;
+
 #[derive(Debug)]
 ///CompUnit is BaseAST
 pub struct CompUnit {
@@ -34,16 +36,16 @@ pub enum Stmt {
 }
 
 #[derive(Debug)]
-///Exp         ::= UnaryExp;
+///Exp         ::= AddExp;
 pub enum Exp {
-    UnaryExp(UnaryExp),
+    AddExp(Box<AddExp>),
 }
 
 #[derive(Debug)]
 ///UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
 pub enum UnaryExp {
     PrimaryExp(Box<PrimaryExp>),
-    BinaryOp(UnaryOp, Box<UnaryExp>),
+    BinaryOp(UnaryOp, Box<UnaryExp>), //改名
 }
 
 #[derive(Debug)]
@@ -59,4 +61,33 @@ pub enum UnaryOp {
     Neg,
     Pos,
     Not,
+}
+
+#[derive(Debug)]
+///BinaryAddOP ::= "+" | "-" ;
+pub enum BinaryAddOp {
+    Add,
+    Sub,
+}
+
+#[derive(Debug)]
+///BinaryMulOp ::= "*" | "/" | "%" ;
+pub enum BinaryMulOp {
+    Mul,
+    Div,
+    Mod,
+}
+
+#[derive(Debug)]
+///AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
+pub enum AddExp {
+    MulExp(Box<MulExp>),
+    BinaryExp(Box<AddExp>, BinaryAddOp, Box<MulExp>),
+}
+
+#[derive(Debug)]
+///MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+pub enum MulExp {
+    UnaryExp(Box<UnaryExp>),
+    BinaryExp(Box<MulExp>, BinaryMulOp, Box<UnaryExp>),
 }

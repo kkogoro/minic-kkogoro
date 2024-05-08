@@ -63,7 +63,7 @@ impl GenerateIR for Stmt {
 impl GenerateIR for Exp {
     fn generate(&self, output: &mut File) {
         match self {
-            Exp::UnaryExp(UnaryExp) => UnaryExp.generate(output),
+            Exp::AddExp(add_exp) => add_exp.generate(output),
         }
     }
 }
@@ -72,7 +72,7 @@ impl GenerateIR for Exp {
 impl GenerateIR for UnaryExp {
     fn generate(&self, output: &mut File) {
         match self {
-            UnaryExp::PrimaryExp(PrimaryExp) => PrimaryExp.generate(output),
+            UnaryExp::PrimaryExp(primary_exp) => primary_exp.generate(output),
             UnaryExp::BinaryOp(op, exp) => {
                 exp.generate(output);
                 match op {
@@ -105,6 +105,53 @@ impl GenerateIR for PrimaryExp {
                 //这里以后回来改
                 writeln!(output, "  %{} = add {}, 0", NOW_INDENT, num).unwrap();
             },
+        }
+    }
+}
+
+///为AddExp实现GenerateIR trait
+impl GenerateIR for AddExp {
+    fn generate(&self, output: &mut File) {
+        match self {
+            AddExp::MulExp(mul_exp) => mul_exp.generate(output),
+            AddExp::BinaryExp(add_exp, op, mul_exp) => {
+                mul_exp.generate(output);
+                add_exp.generate(output);
+                unsafe {
+                    NOW_INDENT += 1;
+                    write!(output, "  %{} = ", NOW_INDENT).unwrap();
+                    match op {
+                        BinaryAddOp::Add => write!(output, "add").unwrap(),
+                        BinaryAddOp::Sub => write!(output, "sub").unwrap(),
+                        _ => panic!("Wrong Op in AddExp"),
+                    }
+                    writeln!(output, " %{}, %{}", NOW_INDENT - 1, NOW_INDENT - 2).unwrap();
+                }
+            }
+        }
+    }
+}
+
+///为MulExp实现GenerateIR trait
+impl GenerateIR for MulExp {
+    fn generate(&self, output: &mut File) {
+        match self {
+            MulExp::UnaryExp(unary_exp) => unary_exp.generate(output),
+            MulExp::BinaryExp(mul_exp, op, unary_exp) => {
+                unary_exp.generate(output);
+                mul_exp.generate(output);
+                unsafe {
+                    NOW_INDENT += 1;
+                    write!(output, " %{} = ", NOW_INDENT).unwrap();
+                    match op {
+                        BinaryMulOp::Mul => write!(output, "mul").unwrap(),
+                        BinaryMulOp::Div => write!(output, "div").unwrap(),
+                        BinaryMulOp::Mod => write!(output, "mod").unwrap(),
+                        _ => panic!("Wrong Op in MulExp"),
+                    }
+                    writeln!(output, " %{}, %{}", NOW_INDENT - 1, NOW_INDENT - 2).unwrap();
+                }
+            }
         }
     }
 }

@@ -57,10 +57,10 @@ IntConst: i32 = {
   r"0[xX][0-9a-fA-F]+" => i32::from_str_radix(&<>[2..], 16).unwrap(),
 }
 
-///Exp         ::= UnaryExp;
+///Exp         ::= AddExp;
 Exp: Exp = {
-  <unary_exp : UnaryExp> => {
-    Exp::UnaryExp(<>)
+  <add_exp : AddExp> => {
+    Exp::AddExp(Box::new(add_exp))
   }
 };
 
@@ -72,7 +72,20 @@ UnaryOp: UnaryOp = {
   "!" => UnaryOp::Not,
 }
 
-//naryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+//BinaryAddOp    ::= "+" | "-" ;
+BinaryAddOp: BinaryAddOp = {
+  "+" => BinaryAddOp::Add,
+  "-" => BinaryAddOp::Sub,
+}
+
+//BinaryMulOP    ::= "*" | "/" | "%" ;
+BinaryMulOp: BinaryMulOp = {
+  "*" => BinaryMulOp::Mul,
+  "/" => BinaryMulOp::Div,
+  "%" => BinaryMulOp::Mod,
+}
+
+//UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
 UnaryExp: UnaryExp = {
   <primary_exp: PrimaryExp> => UnaryExp::PrimaryExp(Box::new(primary_exp)),
   <unary_op: UnaryOp> <unary_exp: UnaryExp> => UnaryExp::BinaryOp(unary_op, Box::new(unary_exp)),
@@ -82,4 +95,16 @@ UnaryExp: UnaryExp = {
 PrimaryExp: PrimaryExp = {
   "(" <exp: Exp> ")" => PrimaryExp::Bexp(Box::new(exp)),
   <num: Number> => PrimaryExp::Number(<>),
+}
+
+//MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+MulExp: MulExp = {
+  <unary_exp: UnaryExp> => MulExp::UnaryExp(Box::new(unary_exp)),
+  <mul_exp: MulExp> <op: BinaryMulOp> <unary_exp: UnaryExp> => MulExp::BinaryExp(Box::new(mul_exp), op, Box::new(unary_exp)),
+}
+
+//AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
+AddExp: AddExp = {
+  <mul_exp: MulExp> => AddExp::MulExp(Box::new(mul_exp)),
+  <add_exp: AddExp> <op: BinaryAddOp> <mul_exp: MulExp> => AddExp::BinaryExp(Box::new(add_exp), op, Box::new(mul_exp)),
 }

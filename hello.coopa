@@ -1,8 +1,0 @@
-fun @main(): i32 {
-%entry:
-  %1 = add 6, 0
-  %2 = eq 0 %1
-  %3 = sub 0, %2
-  %4 = sub 0, %3
-  ret %4
-}

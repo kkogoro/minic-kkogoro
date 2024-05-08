@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     match mode.as_str() {
         "-koopa" => {
             ast.generate(&mut output_file);
-            println!("{:#?}", ast);
+            //println!("{:#?}", ast);
             //writeln!(output_file, "{}", my_koppa_ir)?;
         }
         "-riscv" => {
