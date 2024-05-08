@@ -1,7 +1,9 @@
 pub mod ast;
 mod gen_asm;
+mod gen_ir;
 
 use gen_asm::GenerateAsm;
+use gen_ir::GenerateIR;
 use lalrpop_util::lalrpop_mod;
 use std::env::args;
 use std::fs::read_to_string;
@@ -28,20 +30,20 @@ fn main() -> Result<()> {
     let ast = sysy::CompUnitParser::new().parse(&input).unwrap();
 
     // 输出解析得到的 AST
-    let my_koppa_ir = format!("{}", ast);
+    //let my_koppa_ir = format!("{}", ast);
 
     let mut output_file = File::create(output)?;
 
     match mode.as_str() {
         "-koopa" => {
-            //println!("{}", ast);
-            writeln!(output_file, "{}", my_koppa_ir)?;
-            //file.write_all(my_koppa_ir.as_bytes())?;
+            ast.generate(&mut output_file);
+            println!("{:#?}", ast);
+            //writeln!(output_file, "{}", my_koppa_ir)?;
         }
         "-riscv" => {
-            let driver = koopa::front::Driver::from(my_koppa_ir);
-            let program = driver.generate_program().unwrap();
-            program.generate(&mut output_file);
+            //let driver = koopa::front::Driver::from(my_koppa_ir);
+            //let program = driver.generate_program().unwrap();
+            //program.generate(&mut output_file);
         }
         _ => {
             panic!("Unknown mode: {}", mode);

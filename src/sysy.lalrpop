@@ -9,8 +9,10 @@ match {
   r"\s*" => {},
   r"//[^\n\r]*[\n\r]*" => {},
   //r"/\*.*?\*/" => {},
-  r"/\*([^*]|\*[^/])*\*/" => {},
   
+  //r"/\*([^*]|\*[^/])*\*/" => {},
+
+  r"\/\*([^*]|(\*+([^*/])))*\*+\/" => {},
   // 剩下的情况采用默认方式处理
   _
 }
@@ -19,9 +21,6 @@ match {
 // parser 在解析完成后的行为是返回 FuncDef 的值
 //pub CompUnit: String = <func_def: FuncDef> => func_def;
 pub CompUnit: CompUnit = <func_def: FuncDef> => CompUnit { <> };
-
-
-// 同上, 不解释
 
 FuncDef: FuncDef = {
   <func_type: FuncType> <ident: Ident> "(" ")" <block: Block> => {
@@ -33,12 +32,14 @@ FuncType: FuncType = {
     "int" => FuncType::Int,
 };
 
+
 Block: Block = {
     "{" <stmt: Stmt> "}" => Block { <> },
 };
 
+//Stmt        ::= "return" Exp ";";
 Stmt: Stmt = {
-    "return" <num: Number> ";" => Stmt { <> },
+    "return" <exp: Exp> ";" => Stmt::RetExp(exp),
 };
 
 Number: i32 = {
@@ -57,4 +58,31 @@ IntConst: i32 = {
   r"[1-9][0-9]*" => i32::from_str_radix(<>, 10).unwrap(),
   r"0[0-7]*" => i32::from_str_radix(<>, 8).unwrap(),
   r"0[xX][0-9a-fA-F]+" => i32::from_str_radix(&<>[2..], 16).unwrap(),
+}
+
+///Exp         ::= UnaryExp;
+Exp: Exp = {
+  <unary_exp : UnaryExp> => {
+    Exp::UnaryExp(<>)
+  }
+};
+
+
+//UnaryOp     ::= "+" | "-" | "!";
+UnaryOp: UnaryOp = {
+  "-" => UnaryOp::Neg,
+  "+" => UnaryOp::Pos,
+  "!" => UnaryOp::Not,
+}
+
+//naryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+UnaryExp: UnaryExp = {
+  <primary_exp: PrimaryExp> => UnaryExp::PrimaryExp(Box::new(primary_exp)),
+  <unary_op: UnaryOp> <unary_exp: UnaryExp> => UnaryExp::BinaryOp(unary_op, Box::new(unary_exp)),
+}
+
+//PrimaryExp  ::= "(" Exp ")" | Number;
+PrimaryExp: PrimaryExp = {
+  "(" <exp: Exp> ")" => PrimaryExp::Bexp(Box::new(exp)),
+  <num: Number> => PrimaryExp::Number(<>),
 }
