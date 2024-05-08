@@ -83,7 +83,7 @@ impl GenerateIR for UnaryExp {
                     UnaryOp::Pos => {}
                     UnaryOp::Not => unsafe {
                         NOW_INDENT += 1;
-                        writeln!(output, "  %{} = eq 0 %{}", NOW_INDENT, NOW_INDENT - 1).unwrap();
+                        writeln!(output, "  %{} = eq 0, %{}", NOW_INDENT, NOW_INDENT - 1).unwrap();
                     },
                 }
             }
@@ -102,6 +102,7 @@ impl GenerateIR for PrimaryExp {
             }
             PrimaryExp::Number(num) => unsafe {
                 NOW_INDENT += 1;
+                //这里以后回来改
                 writeln!(output, "  %{} = add {}, 0", NOW_INDENT, num).unwrap();
             },
         }
