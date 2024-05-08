@@ -8,7 +8,6 @@ use std::fs::read_to_string;
 use std::fs::File;
 use std::io::Result;
 use std::io::Write;
-use std::string::String;
 // 引用 lalrpop 生成的解析器
 // 因为我们刚刚创建了 sysy.lalrpop, 所以模块名是 sysy
 lalrpop_mod!(sysy);
