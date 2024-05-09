@@ -40,9 +40,11 @@ BlockItem: BlockItem = {
 };
 
 
-//Stmt        ::= "return" Exp ";";
+//Stmt          ::= LVal "=" Exp ";"
+//                | "return" Exp ";";
 Stmt: Stmt = {
     "return" <exp: Exp> ";" => Stmt::RetExp(exp),
+    <lval: LVal> "=" <exp: Exp> ";" => Stmt::Assign(lval, exp),
 };
 
 //LVal          ::= IDENT;
@@ -159,9 +161,10 @@ LOrExp: LOrExp = {
 
 
 
-//Decl          ::= ConstDecl;
+//Decl          ::= ConstDecl | VarDecl;
 Decl: Decl = {
   <const_decl: ConstDecl> => Decl::ConstDecl(const_decl),
+  <var_decl: VarDecl> => Decl::VarDecl(var_decl),
 }
 
 
@@ -205,3 +208,26 @@ ConstInitVal: ConstInitVal = {
 ConstExp: ConstExp = {
   <exp: Exp> => ConstExp::Exp(exp)
 }
+
+//VarDecl       ::= BType VarDef {"," VarDef} ";";
+VarDecl: VarDecl = {
+  <btype: BType> <vardef_s: Comma<VarDef> > ";" => {
+    VarDecl::VarDeclS(btype, vardef_s)
+  }
+}
+
+//VarDef        ::= IDENT | IDENT "=" InitVal;
+VarDef: VarDef = {
+  <ident: Ident> "=" <init_val: InitVal> => {
+    VarDef::Init(ident, init_val)
+  },
+  <ident: Ident> => {
+    VarDef::NoInit(ident)
+  }
+}
+
+//InitVal       ::= Exp;
+InitVal: InitVal = {
+  <exp: Exp> => InitVal::Exp(exp)
+}
+

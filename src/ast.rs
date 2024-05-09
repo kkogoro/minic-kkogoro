@@ -1,6 +1,6 @@
 //! 基础的AST定义
 
-use koopa::ir::values::Binary;
+///////////////////////////BaseAST////////////////////////////
 
 #[derive(Debug)]
 ///CompUnit is BaseAST
@@ -37,9 +37,11 @@ pub enum BlockItem {
 }
 
 #[derive(Debug)]
-///Stmt        ::= "return" Exp ";";
+///Stmt          ::= LVal "=" Exp ";"
+///                | "return" Exp ";";
 pub enum Stmt {
     RetExp(Exp),
+    Assign(LVal, Exp),
 }
 
 ///////////////////////////Exp////////////////////////////
@@ -147,9 +149,10 @@ pub enum LOrExp {
 }
 
 #[derive(Debug)]
-///Decl          ::= ConstDecl;
+///Decl          ::= ConstDecl | VarDecl;
 pub enum Decl {
     ConstDecl(ConstDecl),
+    VarDecl(VarDecl),
 }
 
 #[derive(Debug)]
@@ -188,4 +191,23 @@ pub enum ConstExp {
 /// IDENT对应Ident
 pub struct LVal {
     pub ident: String,
+}
+
+#[derive(Debug)]
+///VarDecl       ::= BType VarDef {"," VarDef} ";";
+pub enum VarDecl {
+    VarDeclS(BType, Vec<VarDef>),
+}
+
+#[derive(Debug)]
+///VarDef        ::= IDENT | IDENT "=" InitVal;
+pub enum VarDef {
+    NoInit(String),
+    Init(String, InitVal),
+}
+
+#[derive(Debug)]
+///InitVal       ::= Exp;
+pub enum InitVal {
+    Exp(Exp),
 }
