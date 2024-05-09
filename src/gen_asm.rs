@@ -6,6 +6,7 @@ pub trait GenerateAsm {
     fn generate(&self, output: &mut File);
 }
 
+/// 为Program实现GenerateAsm trait
 impl GenerateAsm for Program {
     fn generate(&self, output: &mut File) {
         writeln!(output, "  .text").unwrap();
@@ -16,6 +17,7 @@ impl GenerateAsm for Program {
     }
 }
 
+/// 为FunctionData实现GenerateAsm trait
 impl GenerateAsm for koopa::ir::FunctionData {
     fn generate(&self, output: &mut File) {
         // 遍历基本块列表

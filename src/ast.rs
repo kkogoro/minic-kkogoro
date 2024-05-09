@@ -12,7 +12,7 @@ pub struct CompUnit {
 ///FuncDef is BaseAST
 pub struct FuncDef {
     pub func_type: FuncType,
-    pub ident: String,
+    pub ident: String, //IDENT
     pub block: Block,
 }
 
@@ -24,9 +24,16 @@ pub enum FuncType {
 }
 
 #[derive(Debug)]
-///Block is BaseAST
+///Block         ::= "{" {BlockItem} "}";
 pub struct Block {
-    pub stmt: Stmt,
+    pub items: Vec<BlockItem>,
+}
+
+#[derive(Debug)]
+///BlockItem     ::= Decl | Stmt;
+pub enum BlockItem {
+    Decl(Decl),
+    Stmt(Stmt),
 }
 
 #[derive(Debug)]
@@ -34,6 +41,8 @@ pub struct Block {
 pub enum Stmt {
     RetExp(Exp),
 }
+
+///////////////////////////Exp////////////////////////////
 
 #[derive(Debug)]
 ///Exp         ::= LOrExp;
@@ -49,9 +58,10 @@ pub enum UnaryExp {
 }
 
 #[derive(Debug)]
-///PrimaryExp  ::= "(" Exp ")" | Number;
+///PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 pub enum PrimaryExp {
     Bexp(Box<Exp>),
+    LVal(LVal),
     Number(i32),
 }
 
@@ -134,4 +144,48 @@ pub enum LAndExp {
 pub enum LOrExp {
     LAndExp(Box<LAndExp>),
     BinaryExp(Box<LOrExp>, Box<LAndExp>),
+}
+
+#[derive(Debug)]
+///Decl          ::= ConstDecl;
+pub enum Decl {
+    ConstDecl(ConstDecl),
+}
+
+#[derive(Debug)]
+///ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+pub enum ConstDecl {
+    ConstDeclS(BType, Vec<ConstDef>),
+}
+
+#[derive(Debug)]
+///BType         ::= "int";
+pub enum BType {
+    Int,
+}
+
+#[derive(Debug)]
+///ConstDef      ::= IDENT "=" ConstInitVal;
+pub struct ConstDef {
+    pub ident: String,
+    pub const_init_val: ConstInitVal,
+}
+
+#[derive(Debug)]
+///ConstInitVal  ::= ConstExp;
+pub enum ConstInitVal {
+    ConstExp(ConstExp),
+}
+
+#[derive(Debug)]
+///ConstExp      ::= Exp;
+pub enum ConstExp {
+    Exp(Exp),
+}
+
+#[derive(Debug)]
+///LVal          ::= IDENT;
+/// IDENT对应Ident
+pub struct LVal {
+    pub ident: String,
 }

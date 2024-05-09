@@ -30,22 +30,32 @@ FuncType: FuncType = {
 };
 
 
-Block: Block = {
-    "{" <stmt: Stmt> "}" => Block { <> },
+//Block         ::= "{" {BlockItem} "}";
+Block: Block = "{" <items: (BlockItem)*> "}" => Block { <> };
+
+//BlockItem     ::= Decl | Stmt;
+BlockItem: BlockItem = {
+    <decl: Decl> => BlockItem::Decl(decl),
+    <stmt: Stmt> => BlockItem::Stmt(stmt),
 };
+
 
 //Stmt        ::= "return" Exp ";";
 Stmt: Stmt = {
     "return" <exp: Exp> ";" => Stmt::RetExp(exp),
 };
 
+//LVal          ::= IDENT;
+LVal: LVal = {
+    <ident: Ident> => LVal{<>},
+};
+
 Number: i32 = {
     <num: IntConst> => <>,   
 };
 
-// 如果匹配到标识符, 就返回这个字符串
-// 一对尖括号在此处指代的是正则表达式匹配到的字符串 (&str)
-// 关于尖括号到底代表什么, 请 RTFM
+
+// 也是IDENT
 Ident: String = {
     r"[_a-zA-Z][_a-zA-Z0-9]*" => <>.to_string(),   
 };
@@ -90,9 +100,10 @@ UnaryExp: UnaryExp = {
   <unary_op: UnaryOp> <unary_exp: UnaryExp> => UnaryExp::BinaryOp(unary_op, Box::new(unary_exp)),
 }
 
-//PrimaryExp  ::= "(" Exp ")" | Number;
+//PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 PrimaryExp: PrimaryExp = {
   "(" <exp: Exp> ")" => PrimaryExp::Bexp(Box::new(exp)),
+  <lval: LVal> => PrimaryExp::LVal(lval),
   <num: Number> => PrimaryExp::Number(<>),
 }
 
@@ -144,4 +155,53 @@ LAndExp: LAndExp = {
 LOrExp: LOrExp = {
   <land_exp: LAndExp> => LOrExp::LAndExp(Box::new(land_exp)),
   <lor_exp: LOrExp> "||" <land_exp: LAndExp> => LOrExp::BinaryExp(Box::new(lor_exp), Box::new(land_exp)),
+}
+
+
+
+//Decl          ::= ConstDecl;
+Decl: Decl = {
+  <const_decl: ConstDecl> => Decl::ConstDecl(const_decl),
+}
+
+
+//ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+ConstDecl: ConstDecl = {
+  "const" <btype: BType> <constdef_s: Comma<ConstDef> > ";" => {
+    ConstDecl::ConstDeclS(btype, constdef_s)
+  }
+} 
+
+//Comma宏
+//见https://yuhanawa.github.io/posts/2023/57877/#6-%E5%AE%8F-Macros
+Comma<T>: Vec<T> = {
+  <mut v:(<T> ",")*> <e:T?> => match e {
+    None => v,
+    Some(e) => {
+        v.push(e);
+        v
+    }
+  }
+}
+
+//BType         ::= "int";
+BType: BType = {
+  "int" => BType::Int,
+}
+
+//ConstDef      ::= IDENT "=" ConstInitVal;
+ConstDef: ConstDef = {
+  <ident: Ident> "=" <const_init_val: ConstInitVal> => {
+    ConstDef{<>}
+  }
+}
+
+//ConstInitVal  ::= ConstExp;
+ConstInitVal: ConstInitVal = {
+  <const_exp: ConstExp> => ConstInitVal::ConstExp(const_exp)
+}
+
+//ConstExp      ::= Exp;
+ConstExp: ConstExp = {
+  <exp: Exp> => ConstExp::Exp(exp)
 }

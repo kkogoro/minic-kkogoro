@@ -2,33 +2,37 @@
 use std::{fs::File, io::Write};
 
 use crate::ast::*;
-static mut NOW_ID: i32 = 0;
+use crate::calc_exp::Eval;
+use crate::ds_for_ir::GenerateIrInfo;
 
 pub trait GenerateIR {
-    fn generate(&self, output: &mut File);
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo);
 }
 
 ///为CompUnit实现 GenerateIR trait
 impl GenerateIR for CompUnit {
-    fn generate(&self, output: &mut File) {
-        self.func_def.generate(output);
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        self.func_def.generate(output, info);
     }
 }
 
 ///为FuncDef实现GenerateIR trait
 impl GenerateIR for FuncDef {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         write!(output, "fun @{}", self.ident).unwrap();
         write!(output, "(): ").unwrap();
-        self.func_type.generate(output);
+        self.func_type.generate(output, info);
         write!(output, " ").unwrap();
-        self.block.generate(output);
+        write!(output, "{{\n").unwrap();
+        write!(output, "%entry:\n").unwrap();
+        self.block.generate(output, info);
+        write!(output, "}}\n").unwrap();
     }
 }
 
 ///为FuncType实现GenerateIR trait
 impl GenerateIR for FuncType {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, _: &mut GenerateIrInfo) {
         match self {
             FuncType::Int => write!(output, "i32").unwrap(),
         }
@@ -37,23 +41,30 @@ impl GenerateIR for FuncType {
 
 ///为Block实现GenerateIR trait
 impl GenerateIR for Block {
-    fn generate(&self, output: &mut File) {
-        write!(output, "{{\n").unwrap();
-        write!(output, "%entry:\n").unwrap();
-        self.stmt.generate(output);
-        write!(output, "}}\n").unwrap();
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        for item in &self.items {
+            item.generate(output, info);
+        }
+    }
+}
+
+///为BlockItem实现GenerateIR trait
+impl GenerateIR for BlockItem {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            BlockItem::Decl(decl) => decl.generate(output, info),
+            BlockItem::Stmt(stmt) => stmt.generate(output, info),
+        }
     }
 }
 
 ///为Stmt实现GenerateIR trait
 impl GenerateIR for Stmt {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             Stmt::RetExp(exp) => {
-                exp.generate(output);
-                unsafe {
-                    writeln!(output, "  ret %{}", NOW_ID).unwrap();
-                }
+                exp.generate(output, info);
+                writeln!(output, "  ret %{}", info.now_id).unwrap();
             }
         }
     }
@@ -61,32 +72,32 @@ impl GenerateIR for Stmt {
 
 ///为Exp实现GenerateIR trait
 impl GenerateIR for Exp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            Exp::LOrExp(lor_exp) => lor_exp.generate(output),
+            Exp::LOrExp(lor_exp) => lor_exp.generate(output, info),
         }
     }
 }
 
 ///为UnaryExp实现GenerateIR trait
 impl GenerateIR for UnaryExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            UnaryExp::PrimaryExp(primary_exp) => primary_exp.generate(output),
+            UnaryExp::PrimaryExp(primary_exp) => primary_exp.generate(output, info),
             UnaryExp::BinaryOp(op, exp) => {
-                exp.generate(output);
-                let exp_id = unsafe { NOW_ID };
+                exp.generate(output, info);
+                let exp_id = info.now_id;
 
                 match op {
-                    UnaryOp::Neg => unsafe {
-                        NOW_ID += 1;
-                        writeln!(output, "  %{} = sub 0, %{}", NOW_ID, exp_id).unwrap();
-                    },
+                    UnaryOp::Neg => {
+                        info.now_id += 1;
+                        writeln!(output, "  %{} = sub 0, %{}", info.now_id, exp_id).unwrap();
+                    }
                     UnaryOp::Pos => {}
-                    UnaryOp::Not => unsafe {
-                        NOW_ID += 1;
-                        writeln!(output, "  %{} = eq 0, %{}", NOW_ID, exp_id).unwrap();
-                    },
+                    UnaryOp::Not => {
+                        info.now_id += 1;
+                        writeln!(output, "  %{} = eq 0, %{}", info.now_id, exp_id).unwrap();
+                    }
                 }
             }
         }
@@ -95,40 +106,44 @@ impl GenerateIR for UnaryExp {
 
 ///为PrimaryExp实现GenerateIR trait
 impl GenerateIR for PrimaryExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             PrimaryExp::Bexp(exp) => {
-                exp.generate(output);
+                exp.generate(output, info);
             }
-            PrimaryExp::Number(num) => unsafe {
-                NOW_ID += 1;
+            PrimaryExp::Number(num) => {
+                info.now_id += 1;
                 //这里以后回来改
-                writeln!(output, "  %{} = add {}, 0", NOW_ID, num).unwrap();
-            },
+                writeln!(output, "  %{} = add {}, 0", info.now_id, num).unwrap();
+            }
+            PrimaryExp::LVal(lval) => {
+                info.now_id += 1;
+                let val = lval.eval(info);
+                //这里以后回来改
+                writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+            }
         }
     }
 }
 
 ///为AddExp实现GenerateIR trait
 impl GenerateIR for AddExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            AddExp::MulExp(mul_exp) => mul_exp.generate(output),
+            AddExp::MulExp(mul_exp) => mul_exp.generate(output, info),
             AddExp::BinaryExp(add_exp, op, mul_exp) => {
-                mul_exp.generate(output);
-                let mul_id = unsafe { NOW_ID };
-                add_exp.generate(output);
-                let add_id = unsafe { NOW_ID };
-                unsafe {
-                    NOW_ID += 1;
-                    write!(output, "  %{} = ", NOW_ID).unwrap();
-                    match op {
-                        BinaryAddOp::Add => write!(output, "add").unwrap(),
-                        BinaryAddOp::Sub => write!(output, "sub").unwrap(),
-                        _ => panic!("Wrong Op in AddExp"),
-                    }
-                    writeln!(output, " %{}, %{}", add_id, mul_id).unwrap();
+                mul_exp.generate(output, info);
+                let mul_id = info.now_id;
+                add_exp.generate(output, info);
+                let add_id = info.now_id;
+
+                info.now_id += 1;
+                write!(output, "  %{} = ", info.now_id).unwrap();
+                match op {
+                    BinaryAddOp::Add => write!(output, "add").unwrap(),
+                    BinaryAddOp::Sub => write!(output, "sub").unwrap(),
                 }
+                writeln!(output, " %{}, %{}", add_id, mul_id).unwrap();
             }
         }
     }
@@ -136,25 +151,22 @@ impl GenerateIR for AddExp {
 
 ///为MulExp实现GenerateIR trait
 impl GenerateIR for MulExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            MulExp::UnaryExp(unary_exp) => unary_exp.generate(output),
+            MulExp::UnaryExp(unary_exp) => unary_exp.generate(output, info),
             MulExp::BinaryExp(mul_exp, op, unary_exp) => {
-                unary_exp.generate(output);
-                let unary_id = unsafe { NOW_ID };
-                mul_exp.generate(output);
-                let mul_id = unsafe { NOW_ID };
-                unsafe {
-                    NOW_ID += 1;
-                    write!(output, "  %{} = ", NOW_ID).unwrap();
-                    match op {
-                        BinaryMulOp::Mul => write!(output, "mul").unwrap(),
-                        BinaryMulOp::Div => write!(output, "div").unwrap(),
-                        BinaryMulOp::Mod => write!(output, "mod").unwrap(),
-                        _ => panic!("Wrong Op in MulExp"),
-                    }
-                    writeln!(output, " %{}, %{}", mul_id, unary_id).unwrap();
+                unary_exp.generate(output, info);
+                let unary_id = info.now_id;
+                mul_exp.generate(output, info);
+                let mul_id = info.now_id;
+                info.now_id += 1;
+                write!(output, "  %{} = ", info.now_id).unwrap();
+                match op {
+                    BinaryMulOp::Mul => write!(output, "mul").unwrap(),
+                    BinaryMulOp::Div => write!(output, "div").unwrap(),
+                    BinaryMulOp::Mod => write!(output, "mod").unwrap(),
                 }
+                writeln!(output, " %{}, %{}", mul_id, unary_id).unwrap();
             }
         }
     }
@@ -162,25 +174,23 @@ impl GenerateIR for MulExp {
 
 ///为RelExp实现GenerateIR trait
 impl GenerateIR for RelExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            RelExp::AddExp(add_exp) => add_exp.generate(output),
+            RelExp::AddExp(add_exp) => add_exp.generate(output, info),
             RelExp::BinaryExp(rel_exp, op, add_exp) => {
-                add_exp.generate(output);
-                let add_id = unsafe { NOW_ID };
-                rel_exp.generate(output);
-                let rel_id = unsafe { NOW_ID };
-                unsafe {
-                    NOW_ID += 1;
-                    write!(output, "  %{} = ", NOW_ID).unwrap();
-                    match op {
-                        BinaryRelOp::Lt => write!(output, "lt").unwrap(),
-                        BinaryRelOp::Gt => write!(output, "gt").unwrap(),
-                        BinaryRelOp::Le => write!(output, "le").unwrap(),
-                        BinaryRelOp::Ge => write!(output, "ge").unwrap(),
-                    }
-                    writeln!(output, " %{}, %{}", rel_id, add_id).unwrap();
+                add_exp.generate(output, info);
+                let add_id = info.now_id;
+                rel_exp.generate(output, info);
+                let rel_id = info.now_id;
+                info.now_id += 1;
+                write!(output, "  %{} = ", info.now_id).unwrap();
+                match op {
+                    BinaryRelOp::Lt => write!(output, "lt").unwrap(),
+                    BinaryRelOp::Gt => write!(output, "gt").unwrap(),
+                    BinaryRelOp::Le => write!(output, "le").unwrap(),
+                    BinaryRelOp::Ge => write!(output, "ge").unwrap(),
                 }
+                writeln!(output, " %{}, %{}", rel_id, add_id).unwrap();
             }
         }
     }
@@ -188,23 +198,21 @@ impl GenerateIR for RelExp {
 
 ///为EqExp实现GenerateIR trait
 impl GenerateIR for EqExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            EqExp::RelExp(rel_exp) => rel_exp.generate(output),
+            EqExp::RelExp(rel_exp) => rel_exp.generate(output, info),
             EqExp::BinaryExp(eq_exp, op, rel_exp) => {
-                rel_exp.generate(output);
-                let rel_id = unsafe { NOW_ID };
-                eq_exp.generate(output);
-                let eq_id = unsafe { NOW_ID };
-                unsafe {
-                    NOW_ID += 1;
-                    write!(output, "  %{} = ", NOW_ID).unwrap();
-                    match op {
-                        BinaryEqOp::Eq => write!(output, "eq").unwrap(),
-                        BinaryEqOp::Ne => write!(output, "ne").unwrap(),
-                    }
-                    writeln!(output, " %{}, %{}", eq_id, rel_id).unwrap();
+                rel_exp.generate(output, info);
+                let rel_id = info.now_id;
+                eq_exp.generate(output, info);
+                let eq_id = info.now_id;
+                info.now_id += 1;
+                write!(output, "  %{} = ", info.now_id).unwrap();
+                match op {
+                    BinaryEqOp::Eq => write!(output, "eq").unwrap(),
+                    BinaryEqOp::Ne => write!(output, "ne").unwrap(),
                 }
+                writeln!(output, " %{}, %{}", eq_id, rel_id).unwrap();
             }
         }
     }
@@ -213,29 +221,32 @@ impl GenerateIR for EqExp {
 ///为LAndExp实现GenerateIR trait
 ///注意应该是实现逻辑and，Koopa IR中的是按位and
 impl GenerateIR for LAndExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            LAndExp::EqExp(eq_exp) => eq_exp.generate(output),
+            LAndExp::EqExp(eq_exp) => eq_exp.generate(output, info),
             LAndExp::BinaryExp(land_exp, eq_exp) => {
-                eq_exp.generate(output);
-                let eq_id = unsafe { NOW_ID };
-                land_exp.generate(output);
-                let land_id = unsafe { NOW_ID };
-                unsafe {
-                    //eq != 0
-                    NOW_ID += 1;
-                    let eq_not_0 = NOW_ID;
-                    writeln!(output, "  %{} = ne 0, %{}", eq_not_0, eq_id).unwrap();
+                eq_exp.generate(output, info);
+                let eq_id = info.now_id;
+                land_exp.generate(output, info);
+                let land_id = info.now_id;
+                //eq != 0
+                info.now_id += 1;
+                let eq_not_0 = info.now_id;
+                writeln!(output, "  %{} = ne 0, %{}", eq_not_0, eq_id).unwrap();
 
-                    //land != 0
-                    NOW_ID += 1;
-                    let land_not_0 = NOW_ID;
-                    writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
+                //land != 0
+                info.now_id += 1;
+                let land_not_0 = info.now_id;
+                writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
 
-                    //(eq != 0) & (land != 0)
-                    NOW_ID += 1;
-                    writeln!(output, "  %{} = and %{}, %{}", NOW_ID, land_not_0, eq_not_0).unwrap();
-                }
+                //(eq != 0) & (land != 0)
+                info.now_id += 1;
+                writeln!(
+                    output,
+                    "  %{} = and %{}, %{}",
+                    info.now_id, land_not_0, eq_not_0
+                )
+                .unwrap();
             }
         }
     }
@@ -243,30 +254,63 @@ impl GenerateIR for LAndExp {
 
 ///为LOrExp实现GenerateIR trait
 impl GenerateIR for LOrExp {
-    fn generate(&self, output: &mut File) {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            LOrExp::LAndExp(land_exp) => land_exp.generate(output),
+            LOrExp::LAndExp(land_exp) => land_exp.generate(output, info),
             LOrExp::BinaryExp(lor_exp, land_exp) => {
-                land_exp.generate(output);
-                let land_id = unsafe { NOW_ID };
-                lor_exp.generate(output);
-                let lor_id = unsafe { NOW_ID };
-                unsafe {
-                    //land != 0
-                    NOW_ID += 1;
-                    let land_not_0 = NOW_ID;
-                    writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
+                land_exp.generate(output, info);
+                let land_id = info.now_id;
+                lor_exp.generate(output, info);
+                let lor_id = info.now_id;
+                //land != 0
+                info.now_id += 1;
+                let land_not_0 = info.now_id;
+                writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
 
-                    //lor != 0
-                    NOW_ID += 1;
-                    let lor_not_0 = NOW_ID;
-                    writeln!(output, "  %{} = ne 0, %{}", lor_not_0, lor_id).unwrap();
+                //lor != 0
+                info.now_id += 1;
+                let lor_not_0 = info.now_id;
+                writeln!(output, "  %{} = ne 0, %{}", lor_not_0, lor_id).unwrap();
 
-                    //(lor != 0) | (land != 0)
-                    NOW_ID += 1;
-                    writeln!(output, "  %{} = or %{}, %{}", NOW_ID, lor_not_0, land_not_0).unwrap();
+                //(lor != 0) | (land != 0)
+                info.now_id += 1;
+                writeln!(
+                    output,
+                    "  %{} = or %{}, %{}",
+                    info.now_id, lor_not_0, land_not_0
+                )
+                .unwrap();
+            }
+        }
+    }
+}
+
+///为Decl实现GenerateIR trait
+impl GenerateIR for Decl {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            Decl::ConstDecl(const_decl) => const_decl.generate(output, info),
+        }
+    }
+}
+
+///为ConstDecl实现GenerateIR trait
+impl GenerateIR for ConstDecl {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            ConstDecl::ConstDeclS(btype, const_def_s) => {
+                for const_def in const_def_s {
+                    const_def.generate(output, info);
                 }
             }
         }
+    }
+}
+
+///为ConstDef实现GenerateIR trait
+impl GenerateIR for ConstDef {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        let val = self.const_init_val.eval(info);
+        info.const_val.insert(self.ident.clone(), val);
     }
 }

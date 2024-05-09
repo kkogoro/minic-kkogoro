@@ -1,8 +1,5 @@
 fun @main(): i32 {
 %entry:
-  %1 = add 1, 0
-  %2 = add 2, 0
-  %3 = sub 0, %2
-  %4 = sub %3, %1
-  ret %4
+  %1 = add 2, 0
+  ret %1
 }

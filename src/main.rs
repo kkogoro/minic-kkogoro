@@ -1,6 +1,9 @@
 pub mod ast;
+pub mod calc_exp;
+pub mod ds_for_ir;
 mod gen_asm;
 mod gen_ir;
+pub mod symbol_table;
 
 use gen_asm::GenerateAsm;
 use gen_ir::GenerateIR;
@@ -36,7 +39,11 @@ fn main() -> Result<()> {
 
     match mode.as_str() {
         "-koopa" => {
-            ast.generate(&mut output_file);
+            let mut info = ds_for_ir::GenerateIrInfo {
+                now_id: 0,
+                const_val: symbol_table::SymbolTable::new(),
+            };
+            ast.generate(&mut output_file, &mut info);
             //println!("{:#?}", ast);
             //writeln!(output_file, "{}", my_koppa_ir)?;
         }
