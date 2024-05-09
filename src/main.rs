@@ -41,7 +41,7 @@ fn main() -> Result<()> {
         "-koopa" => {
             let mut info = ds_for_ir::GenerateIrInfo {
                 now_id: 0,
-                const_val: symbol_table::SymbolTable::new(),
+                table: symbol_table::SymbolTable::new(),
             };
             ast.generate(&mut output_file, &mut info);
             //println!("{:#?}", ast);

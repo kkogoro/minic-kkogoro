@@ -1,6 +1,7 @@
 ///!实现生成表达式静态求值
 use crate::ast::*;
 use crate::ds_for_ir::GenerateIrInfo;
+use crate::symbol_table::SymbolType;
 pub trait Eval {
     fn eval(&self, info: &mut GenerateIrInfo) -> i32;
 }
@@ -210,11 +211,18 @@ impl Eval for PrimaryExp {
 }
 
 ///为LVal实现Eval trait
+///注意到LVal只有为常量时才可调用Eval
+///可在更上一层调用中就得知LVal是否为常量
 impl Eval for LVal {
     fn eval(&self, info: &mut GenerateIrInfo) -> i32 {
-        info.const_val
+        let val = info
+            .table
             .get(&self.ident)
             .copied()
-            .expect("No Symbol Found!")
+            .expect("No Symbol Found!");
+        match val {
+            SymbolType::Const(v) => v,
+            SymbolType::Var(_) => panic!("Try eval a Var!"),
+        }
     }
 }

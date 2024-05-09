@@ -4,6 +4,10 @@ use std::{fs::File, io::Write};
 use crate::ast::*;
 use crate::calc_exp::Eval;
 use crate::ds_for_ir::GenerateIrInfo;
+use crate::symbol_table::SymbolType;
+use crate::symbol_table::SymbolType::Const;
+use crate::symbol_table::SymbolType::Var;
+use crate::symbol_table::VarTypeBase;
 
 pub trait GenerateIR {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo);
@@ -66,6 +70,13 @@ impl GenerateIR for Stmt {
                 exp.generate(output, info);
                 writeln!(output, "  ret %{}", info.now_id).unwrap();
             }
+            Stmt::Assign(lval, exp) => {
+                //赋值语句，LVal必须是变量
+                exp.generate(output, info);
+                let exp_id = info.now_id;
+
+                writeln!(output, "  store %{}, @{}", exp_id, lval.ident).unwrap();
+            }
         }
     }
 }
@@ -117,10 +128,10 @@ impl GenerateIR for PrimaryExp {
                 writeln!(output, "  %{} = add {}, 0", info.now_id, num).unwrap();
             }
             PrimaryExp::LVal(lval) => {
+                lval.generate(output, info);
+                let lval_id = info.now_id;
                 info.now_id += 1;
-                let val = lval.eval(info);
-                //这里以后回来改
-                writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+                writeln!(output, "  %{} = add %{}, 0", info.now_id, lval_id).unwrap();
             }
         }
     }
@@ -290,6 +301,7 @@ impl GenerateIR for Decl {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             Decl::ConstDecl(const_decl) => const_decl.generate(output, info),
+            Decl::VarDecl(var_decl) => var_decl.generate(output, info),
         }
     }
 }
@@ -311,6 +323,68 @@ impl GenerateIR for ConstDecl {
 impl GenerateIR for ConstDef {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let val = self.const_init_val.eval(info);
-        info.const_val.insert(self.ident.clone(), val);
+        info.table.insert(self.ident.clone(), Const(val));
+    }
+}
+
+///为VarDecl实现GenerateIR trait
+impl GenerateIR for VarDecl {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            VarDecl::VarDeclS(btype, var_def_s) => {
+                for var_def in var_def_s {
+                    var_def.generate(output, info);
+                }
+            }
+        }
+    }
+}
+
+///为VarDef实现GenerateIR trait
+impl GenerateIR for VarDef {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            VarDef::NoInit(ident) => {
+                writeln!(output, "  @{} = alloc i32", ident).unwrap();
+                info.table.insert(ident.clone(), Var(VarTypeBase::new()));
+            }
+            VarDef::Init(ident, init_val) => {
+                writeln!(output, "  @{} = alloc i32", ident).unwrap();
+                info.table.insert(ident.clone(), Var(VarTypeBase::new()));
+
+                init_val.generate(output, info);
+                let init_val_id = info.now_id;
+
+                writeln!(output, "  store %{}, @{}", init_val_id, ident).unwrap();
+            }
+        }
+    }
+}
+
+///为InitVal实现GenerateIR trait
+impl GenerateIR for InitVal {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            InitVal::Exp(exp) => {
+                exp.generate(output, info);
+            }
+        }
+    }
+}
+
+///为LVal实现GenerateIR trait
+///作用是取出LVal对应的变量的值，存入info.now_id + 1中
+impl GenerateIR for LVal {
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        let x = info.table.get(&self.ident).copied().unwrap();
+        info.now_id += 1;
+        match x {
+            Var(_) => {
+                writeln!(output, "  %{} = load @{}", info.now_id, self.ident).unwrap();
+            }
+            Const(val) => {
+                writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+            }
+        }
     }
 }
