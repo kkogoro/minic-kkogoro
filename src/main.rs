@@ -44,7 +44,7 @@ fn main() -> Result<()> {
                 table: symbol_table::SymbolTable::new(),
             };
             ast.generate(&mut output_file, &mut info);
-            //println!("{:#?}", ast);
+            println!("{:#?}", ast);
             //writeln!(output_file, "{}", my_koppa_ir)?;
         }
         "-riscv" => {

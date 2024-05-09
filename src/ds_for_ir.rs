@@ -4,4 +4,5 @@ use crate::symbol_table::SymbolTable;
 pub struct GenerateIrInfo {
     pub now_id: i32,
     pub table: SymbolTable,
+    //pub tables: Vec<SymbolTable>,
 }
