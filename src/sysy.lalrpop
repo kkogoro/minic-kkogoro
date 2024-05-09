@@ -57,13 +57,12 @@ IntConst: i32 = {
   r"0[xX][0-9a-fA-F]+" => i32::from_str_radix(&<>[2..], 16).unwrap(),
 }
 
-///Exp         ::= AddExp;
+//Exp         ::= LOrExp;
 Exp: Exp = {
-  <add_exp : AddExp> => {
-    Exp::AddExp(Box::new(add_exp))
+  <lor_exp : LOrExp> => {
+    Exp::LOrExp(Box::new(lor_exp))
   }
 };
-
 
 //UnaryOp     ::= "+" | "-" | "!";
 UnaryOp: UnaryOp = {
@@ -107,4 +106,42 @@ MulExp: MulExp = {
 AddExp: AddExp = {
   <mul_exp: MulExp> => AddExp::MulExp(Box::new(mul_exp)),
   <add_exp: AddExp> <op: BinaryAddOp> <mul_exp: MulExp> => AddExp::BinaryExp(Box::new(add_exp), op, Box::new(mul_exp)),
+}
+
+//BinaryRelOp ::= "<" | ">" | "<=" | ">=" ;
+BinaryRelOp: BinaryRelOp = {
+  "<" => BinaryRelOp::Lt,
+  ">" => BinaryRelOp::Gt,
+  "<=" => BinaryRelOp::Le,
+  ">=" => BinaryRelOp::Ge,
+}
+
+//RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+RelExp: RelExp = {
+  <add_exp: AddExp> => RelExp::AddExp(Box::new(add_exp)),
+  <rel_exp: RelExp> <op: BinaryRelOp> <add_exp: AddExp> => RelExp::BinaryExp(Box::new(rel_exp), op, Box::new(add_exp)),
+}
+
+//BinaryEqOp  ::= "==" | "!=" ;
+BinaryEqOp: BinaryEqOp = {
+  "==" => BinaryEqOp::Eq,
+  "!=" => BinaryEqOp::Ne,
+}
+
+//EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
+EqExp: EqExp = {
+  <rel_exp: RelExp> => EqExp::RelExp(Box::new(rel_exp)),
+  <eq_exp: EqExp> <op: BinaryEqOp> <rel_exp: RelExp> => EqExp::BinaryExp(Box::new(eq_exp), op, Box::new(rel_exp)),
+}
+
+//LAndExp     ::= EqExp | LAndExp "&&" EqExp;
+LAndExp: LAndExp = {
+  <eq_exp: EqExp> => LAndExp::EqExp(Box::new(eq_exp)),
+  <land_exp: LAndExp> "&&" <eq_exp: EqExp> => LAndExp::BinaryExp(Box::new(land_exp), Box::new(eq_exp)),
+}
+
+//LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
+LOrExp: LOrExp = {
+  <land_exp: LAndExp> => LOrExp::LAndExp(Box::new(land_exp)),
+  <lor_exp: LOrExp> "||" <land_exp: LAndExp> => LOrExp::BinaryExp(Box::new(lor_exp), Box::new(land_exp)),
 }

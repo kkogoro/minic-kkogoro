@@ -36,9 +36,9 @@ pub enum Stmt {
 }
 
 #[derive(Debug)]
-///Exp         ::= AddExp;
+///Exp         ::= LOrExp;
 pub enum Exp {
-    AddExp(Box<AddExp>),
+    LOrExp(Box<LOrExp>),
 }
 
 #[derive(Debug)]
@@ -90,4 +90,48 @@ pub enum AddExp {
 pub enum MulExp {
     UnaryExp(Box<UnaryExp>),
     BinaryExp(Box<MulExp>, BinaryMulOp, Box<UnaryExp>),
+}
+
+#[derive(Debug)]
+///BinaryRelOp ::= "<" | ">" | "<=" | ">=" ;
+pub enum BinaryRelOp {
+    Lt,
+    Gt,
+    Le,
+    Ge,
+}
+
+#[derive(Debug)]
+///RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+pub enum RelExp {
+    AddExp(Box<AddExp>),
+    BinaryExp(Box<RelExp>, BinaryRelOp, Box<AddExp>),
+}
+
+#[derive(Debug)]
+///BinaryEqOp  ::= "==" | "!=" ;
+pub enum BinaryEqOp {
+    Eq,
+    Ne,
+}
+
+#[derive(Debug)]
+///EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
+pub enum EqExp {
+    RelExp(Box<RelExp>),
+    BinaryExp(Box<EqExp>, BinaryEqOp, Box<RelExp>),
+}
+
+#[derive(Debug)]
+///LAndExp     ::= EqExp | LAndExp "&&" EqExp;
+pub enum LAndExp {
+    EqExp(Box<EqExp>),
+    BinaryExp(Box<LAndExp>, Box<EqExp>),
+}
+
+#[derive(Debug)]
+///LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
+pub enum LOrExp {
+    LAndExp(Box<LAndExp>),
+    BinaryExp(Box<LOrExp>, Box<LAndExp>),
 }
