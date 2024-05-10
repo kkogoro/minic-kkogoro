@@ -52,6 +52,9 @@ Stmt: Stmt = {
 //              | Block
 //              | "if" "(" Exp ")" MatchedStmt "else" MatchedStmt
 //              | "return" [Exp] ";";
+//              | "while" "(" Exp ")" MatchedStmt
+//              | "break" ";"
+//              | "continue" ";"
 MatchedStmt: Stmt = {
     <lval: LVal> "=" <exp: Exp> ";" => Stmt::Assign(lval, exp),
     <exp: (Exp)?> ";" => Stmt::Exp(<>),
@@ -59,14 +62,19 @@ MatchedStmt: Stmt = {
     "if" "(" <exp: Exp> ")" <then_stmt: MatchedStmt> "else" <else_stmt: MatchedStmt>
        => Stmt::If(exp, Box::new(then_stmt), Some(Box::new(else_stmt))),
     "return" <exp: (Exp)?> ";" => Stmt::RetExp(<>),
+    "while" "(" <exp: Exp> ")" <stmt: MatchedStmt> => Stmt::While(exp, Box::new(stmt)),
+    "break" ";" => Stmt::Break,
+    "continue" ";" => Stmt::Continue,
 };
 
 //OpenStmt ::= "if" "(" Exp ")" Stmt
 //           | "if" "(" Exp ")" MatchedStmt "else" OpenStmt
+//           | "while" "(" Exp ")" OpenStmt
 OpenStmt: Stmt = {
     "if" "(" <exp: Exp> ")" <stmt: Stmt> => Stmt::If(exp, Box::new(stmt), None),
     "if" "(" <exp: Exp> ")" <then_stmt: MatchedStmt> "else" <else_stmt: OpenStmt>
        => Stmt::If(exp, Box::new(then_stmt), Some(Box::new(else_stmt))),
+    "while" "(" <exp: Exp> ")" <stmt: OpenStmt> => Stmt::While(exp, Box::new(stmt)),
 };
 
 

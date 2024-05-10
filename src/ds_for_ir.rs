@@ -9,7 +9,9 @@ pub struct GenerateIrInfo {
     pub tables: Vec<SymbolTable>,
     pub block_id: Vec<i32>,
     pub if_id: i32,
-    pub and_or_id: i32, //短路求值块编号
+    pub and_or_id: i32,          //短路求值块编号
+    pub while_id: i32,           //while循环块编号
+    pub while_history: Vec<i32>, //从当前到根的循环块编号栈
 }
 
 impl GenerateIrInfo {
@@ -22,6 +24,8 @@ impl GenerateIrInfo {
             block_id: vec![0],
             if_id: 0,
             and_or_id: 0,
+            while_id: 0,
+            while_history: vec![],
             //table: symbol_table::SymbolTable::new(),
         }
     }
@@ -91,5 +95,26 @@ impl GenerateIrInfo {
         self.tables.pop();
 
         symbol_table_debug!("表结构为{:#?}", self.tables);
+    }
+
+    ///新建一个while循环块
+    pub fn push_while(&mut self) {
+        self.while_id += 1;
+        self.while_history.push(self.while_id);
+
+        while_stack_debug!(
+            "新建while循环块: {}\nwhile栈结构为{:#?}",
+            self.while_id,
+            self.while_history
+        );
+    }
+
+    ///删除一个while循环块
+    pub fn pop_while(&mut self) {
+        while_stack_debug!("删除while循环块: {}", self.while_history.last().unwrap(),);
+
+        self.while_history.pop();
+
+        while_stack_debug!("while栈结构为{:#?}", self.while_history);
     }
 }

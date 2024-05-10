@@ -23,7 +23,8 @@ generate-ir = []
 #生成risc-v
 generate-asm = []
 
-debug=["symbol-table-debug"]
+debug=["symbol-table-debug", "while-stack-debug"]
 # symbol-table-debug: 符号表的调试信息
 symbol-table-debug=[]
-
+# while-stack-debug:while块编号栈的调试信息
+while-stack-debug=[]

@@ -42,12 +42,18 @@ pub enum BlockItem {
 ///       | Block
 ///       | "return" [Exp] ";";
 ///       | "if" "(" Exp ")" Stmt ["else" Stmt]
+///       | "while" "(" Exp ")" Stmt
+///       | "break" ";"
+///       | "continue" ";"
 pub enum Stmt {
     Assign(LVal, Exp),
     Exp(Option<Exp>),
     Block(Block),
     If(Exp, Box<Stmt>, Option<Box<Stmt>>),
     RetExp(Option<Exp>),
+    While(Exp, Box<Stmt>),
+    Break,
+    Continue,
 }
 
 ///////////////////////////Exp////////////////////////////

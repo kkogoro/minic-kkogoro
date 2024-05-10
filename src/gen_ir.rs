@@ -18,7 +18,7 @@ pub trait GenerateIR {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Self::GenerateResult;
 }
 
-///用于记录子树中是否已经return
+///用于记录子树中是否已经return/jump/br
 pub enum Returned {
     Yes,
     No,
@@ -197,6 +197,57 @@ impl GenerateIR for Stmt {
                 writeln!(output, "%if_end_{}:", now_if_id).unwrap();
                 //then_else_result
                 Returned::No
+            }
+            Stmt::While(exp, stmt) => {
+                //生成while基础块
+                info.push_while();
+                let now_while_id = info.while_id;
+                writeln!(output, "  jump %while_begin_{}", now_while_id).unwrap();
+                writeln!(output, "%while_begin_{}:", now_while_id).unwrap();
+                let exp_id = exp.generate(output, info);
+                writeln!(
+                    output,
+                    "  br %{}, %while_body_{}, %while_end_{}",
+                    exp_id, now_while_id, now_while_id
+                )
+                .unwrap();
+                //生成while循环体基础块标号
+                writeln!(output, "%while_body_{}:", now_while_id).unwrap();
+                match stmt.generate(output, info) {
+                    Returned::Yes => {
+                        //循环体有return，不生成跳转
+                    }
+                    Returned::No => {
+                        //循环体没有return，生成跳转
+                        writeln!(output, "  jump %while_begin_{}", now_while_id).unwrap();
+                    }
+                }
+                writeln!(output, "%while_end_{}:", now_while_id).unwrap();
+                //删除while基础块
+                info.pop_while();
+                Returned::No
+            }
+            Stmt::Break => {
+                writeln!(
+                    output,
+                    "  jump %while_end_{}",
+                    info.while_history
+                        .last()
+                        .expect("没有在while中使用break!!!")
+                )
+                .unwrap();
+                Returned::Yes
+            }
+            Stmt::Continue => {
+                writeln!(
+                    output,
+                    "  jump %while_begin_{}",
+                    info.while_history
+                        .last()
+                        .expect("没有在while中使用continue!!!")
+                )
+                .unwrap();
+                Returned::Yes
             }
         }
     }
