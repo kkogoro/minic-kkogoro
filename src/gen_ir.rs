@@ -42,7 +42,13 @@ impl GenerateIR for FuncDef {
         write!(output, " ").unwrap();
         write!(output, "{{\n").unwrap();
         write!(output, "%entry:\n").unwrap();
-        self.block.generate(output, info);
+        match self.block.generate(output, info) {
+            Returned::Yes => {}
+            Returned::No => match self.func_type {
+                FuncType::Int => writeln!(output, "  ret 0").unwrap(),
+                _ => writeln!(output, "  ret").unwrap(), //TODO以后有void函数再改
+            },
+        }
         write!(output, "}}\n").unwrap();
     }
 }
