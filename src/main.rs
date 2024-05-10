@@ -8,14 +8,14 @@ mod gen_asm;
 mod gen_ir;
 pub mod symbol_table;
 
-use gen_asm::GenerateAsm;
+//use gen_asm::GenerateAsm;
 use gen_ir::GenerateIR;
 use lalrpop_util::lalrpop_mod;
 use std::env::args;
 use std::fs::read_to_string;
 use std::fs::File;
 use std::io::Result;
-use std::io::Write;
+//use std::io::Write;
 // 引用 lalrpop 生成的解析器
 // 因为我们刚刚创建了 sysy.lalrpop, 所以模块名是 sysy
 lalrpop_mod!(sysy);

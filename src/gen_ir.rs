@@ -4,7 +4,7 @@ use std::{fs::File, io::Write};
 use crate::ast::*;
 use crate::calc_exp::Eval;
 use crate::ds_for_ir::GenerateIrInfo;
-use crate::symbol_table::SymbolType;
+
 use crate::symbol_table::SymbolType::Const;
 use crate::symbol_table::SymbolType::Var;
 use crate::symbol_table::VarTypeBase;
@@ -14,6 +14,12 @@ pub trait GenerateIR {
     ///用于记录不同种类单元的返回情况
     type GenerateResult;
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Self::GenerateResult;
+}
+
+///用于记录子树中是否已经return
+pub enum Returned {
+    Yes,
+    No,
 }
 
 ///为CompUnit实现 GenerateIR trait
@@ -51,22 +57,29 @@ impl GenerateIR for FuncType {
 
 ///为Block实现GenerateIR trait
 impl GenerateIR for Block {
-    type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    type GenerateResult = Returned;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
         //目前现在block的GenerateIR trait调用新建block
         //注意只有FuncDef和Stmt会推导出Block
         info.push_block();
         for item in &self.items {
-            item.generate(output, info);
+            match item.generate(output, info) {
+                Returned::Yes => {
+                    info.pop_block();
+                    return Returned::Yes;
+                }
+                Returned::No => {}
+            }
         }
         info.pop_block();
+        Returned::No
     }
 }
 
 ///为BlockItem实现GenerateIR trait
 impl GenerateIR for BlockItem {
-    type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    type GenerateResult = Returned;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
         match self {
             BlockItem::Decl(decl) => decl.generate(output, info),
             BlockItem::Stmt(stmt) => stmt.generate(output, info),
@@ -76,8 +89,8 @@ impl GenerateIR for BlockItem {
 
 ///为Stmt实现GenerateIR trait
 impl GenerateIR for Stmt {
-    type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    type GenerateResult = Returned;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
         match self {
             Stmt::Assign(lval, exp) => {
                 //赋值语句，LVal必须是变量
@@ -91,25 +104,31 @@ impl GenerateIR for Stmt {
                     info.get_name(&lval.ident).unwrap()
                 )
                 .unwrap();
+
+                Returned::No
             }
-            Stmt::Exp(exp) => match exp {
-                Some(exp) => {
-                    exp.generate(output, info);
+            Stmt::Exp(exp) => {
+                match exp {
+                    Some(exp) => {
+                        exp.generate(output, info);
+                    }
+                    None => {}
                 }
-                None => {}
-            },
-            Stmt::Block(block) => {
-                block.generate(output, info);
+                Returned::No
             }
-            Stmt::RetExp(exp) => match exp {
-                Some(exp) => {
-                    exp.generate(output, info);
-                    writeln!(output, "  ret %{}", info.now_id).unwrap();
+            Stmt::Block(block) => block.generate(output, info),
+            Stmt::RetExp(exp) => {
+                match exp {
+                    Some(exp) => {
+                        exp.generate(output, info);
+                        writeln!(output, "  ret %{}", info.now_id).unwrap();
+                    }
+                    None => {
+                        writeln!(output, "  ret").unwrap();
+                    }
                 }
-                None => {
-                    writeln!(output, "  ret").unwrap();
-                }
-            },
+                Returned::Yes
+            }
         }
     }
 }
@@ -461,12 +480,13 @@ impl GenerateIR for LOrExp {
 
 ///为Decl实现GenerateIR trait
 impl GenerateIR for Decl {
-    type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    type GenerateResult = Returned;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
         match self {
             Decl::ConstDecl(const_decl) => const_decl.generate(output, info),
             Decl::VarDecl(var_decl) => var_decl.generate(output, info),
         }
+        Returned::No
     }
 }
 
