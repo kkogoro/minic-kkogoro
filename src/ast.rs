@@ -41,10 +41,12 @@ pub enum BlockItem {
 ///       | [Exp] ";"
 ///       | Block
 ///       | "return" [Exp] ";";
+///       | "if" "(" Exp ")" Stmt ["else" Stmt]
 pub enum Stmt {
     Assign(LVal, Exp),
     Exp(Option<Exp>),
     Block(Block),
+    If(Exp, Box<Stmt>, Option<Box<Stmt>>),
     RetExp(Option<Exp>),
 }
 

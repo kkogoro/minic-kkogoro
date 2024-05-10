@@ -16,7 +16,14 @@ lalrpop-util = { version = "0.20.2", features = ["lexer"] }
 default = []
 # default = ["debug"] 
 
-debug=["symbol-table-debug"]
+#打印AST
+print-AST = []
+#生成ir
+generate-ir = []
+#生成risc-v
+generate-asm = []
 
+debug=["symbol-table-debug"]
 # symbol-table-debug: 符号表的调试信息
 symbol-table-debug=[]
+

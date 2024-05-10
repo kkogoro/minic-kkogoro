@@ -4,12 +4,19 @@ mod debug_macros;
 pub mod ast;
 pub mod calc_exp;
 pub mod ds_for_ir;
+
+#[cfg(feature = "generate-asm")]
 mod gen_asm;
+
+#[cfg(feature = "generate-ir")]
 mod gen_ir;
+#[cfg(feature = "generate-ir")]
+use gen_ir::GenerateIR;
+
 pub mod symbol_table;
 
 //use gen_asm::GenerateAsm;
-use gen_ir::GenerateIR;
+
 use lalrpop_util::lalrpop_mod;
 use std::env::args;
 use std::fs::read_to_string;
@@ -57,14 +64,21 @@ fn main() -> Result<()> {
                 info.block_id
             );
 
-            ast.generate(&mut output_file, &mut info);
-            //println!("{:#?}", ast);
-            //writeln!(output_file, "{}", my_koppa_ir)?;
+            #[cfg(feature = "print-AST")]
+            println!("{:#?}", ast);
+
+            #[cfg(feature = "generate-ir")]
+            {
+                ast.generate(&mut output_file, &mut info);
+            }
         }
         "-riscv" => {
-            //let driver = koopa::front::Driver::from(my_koppa_ir);
-            //let program = driver.generate_program().unwrap();
-            //program.generate(&mut output_file);
+            #[cfg(feature = "generate-asm")]
+            {
+                let driver = koopa::front::Driver::from(my_koppa_ir);
+                let program = driver.generate_program().unwrap();
+                program.generate(&mut output_file);
+            }
         }
         _ => {
             panic!("Unknown mode: {}", mode);
