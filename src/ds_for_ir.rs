@@ -9,6 +9,7 @@ pub struct GenerateIrInfo {
     pub tables: Vec<SymbolTable>,
     pub block_id: Vec<i32>,
     pub if_id: i32,
+    pub and_or_id: i32, //短路求值块编号
 }
 
 impl GenerateIrInfo {
@@ -20,6 +21,7 @@ impl GenerateIrInfo {
             tables: vec![SymbolTable::new()],
             block_id: vec![0],
             if_id: 0,
+            and_or_id: 0,
             //table: symbol_table::SymbolTable::new(),
         }
     }
@@ -51,7 +53,7 @@ impl GenerateIrInfo {
         match self.search_symbol(key) {
             Some(SymbolReturn { content, dep }) => match content {
                 SymbolType::Var(_) => {
-                    Some(key.to_string() + "_" + &self.block_id[dep as usize].to_string())
+                    Some("var_".to_string() + key + "_" + &self.block_id[dep as usize].to_string())
                 }
                 _ => panic!("尝试查询常量的名称"),
             },

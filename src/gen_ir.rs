@@ -454,29 +454,67 @@ impl GenerateIR for LAndExp {
         }
         match self {
             LAndExp::EqExp(eq_exp) => eq_exp.generate(output, info),
+            /*and短路求值逻辑
+              @and_result_114 = alloc i32
+              store 0, @and_result_114
+              %lhs = ...
+              %lhs_ne_0_114 = ne %lhs 0
+              br %lhs_ne_0_114, %calc_rhs_114, %and_end_114
+            %calc_rhs_114:
+              %rhs = ...
+              %rhs_ne_0_114 = ne %rhs, 0
+              store %rhs_ne_0_114, @and_result_114
+              jump %and_end_114
+            %and_end_114:
+              %ans = load @and_result_114
+            */
             LAndExp::BinaryExp(land_exp, eq_exp) => {
-                let eq_id = eq_exp.generate(output, info);
-                let land_id = land_exp.generate(output, info);
-                //eq != 0
-                info.now_id += 1;
-                let eq_not_0 = info.now_id;
-                writeln!(output, "  %{} = ne 0, %{}", eq_not_0, eq_id).unwrap();
-
-                //land != 0
-                info.now_id += 1;
-                let land_not_0 = info.now_id;
-                writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
-
-                //(eq != 0) & (land != 0)
+                info.and_or_id += 1;
+                let now_and_or_id = info.and_or_id;
+                writeln!(output, "  @and_result_{} = alloc i32", now_and_or_id).unwrap();
+                writeln!(output, "  store 0, @and_result_{}", now_and_or_id).unwrap();
+                let lhs_id = land_exp.generate(output, info);
+                writeln!(output, "  %lhs_ne_0_{} = ne %{}, 0", now_and_or_id, lhs_id).unwrap();
+                writeln!(
+                    output,
+                    "  br %lhs_ne_0_{}, %calc_rhs_{}, %and_end_{}",
+                    now_and_or_id, now_and_or_id, now_and_or_id
+                )
+                .unwrap();
+                writeln!(output, "%calc_rhs_{}:", now_and_or_id).unwrap();
+                let rhs_id = eq_exp.generate(output, info);
+                writeln!(output, "  %rhs_ne_0_{} = ne %{}, 0", now_and_or_id, rhs_id).unwrap();
+                writeln!(
+                    output,
+                    "  store %rhs_ne_0_{}, @and_result_{}",
+                    now_and_or_id, now_and_or_id
+                )
+                .unwrap();
+                writeln!(output, "  jump %and_end_{}", now_and_or_id).unwrap();
+                writeln!(output, "%and_end_{}:", now_and_or_id).unwrap();
                 info.now_id += 1;
                 writeln!(
                     output,
-                    "  %{} = and %{}, %{}",
-                    info.now_id, land_not_0, eq_not_0
+                    "  %{} = load @and_result_{}",
+                    info.now_id, now_and_or_id
                 )
                 .unwrap();
-
                 info.now_id
+                /*
+                    //land != 0
+                    info.now_id += 1;
+                    let land_not_0 = info.now_id;
+                    writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
+
+                    //(eq != 0) & (land != 0)
+                    info.now_id += 1;
+                    writeln!(
+                        output,
+                        "  %{} = and %{}, %{}",
+                        info.now_id, land_not_0, eq_not_0
+                    )
+                    .unwrap();
+                */
             }
         }
     }
@@ -510,31 +548,75 @@ impl GenerateIR for LOrExp {
             .unwrap();
             return info.now_id;
         }
-
+        /*or短路求值逻辑
+          @or_result_114 = alloc i32
+          store 1, @or_result_114
+          %lhs = ...
+          %lhs_eq_0_114 = eq %lhs 0
+          br %lhs_eq_0_114, %calc_rhs_114, %or_end_114
+        %calc_rhs_114:
+          %rhs = ...
+          %rhs_ne_0_114 = ne %rhs, 0
+          store %rhs_ne_0_114, @or_result_114
+          jump %or_end_114
+        %or_end_114:
+          %ans = load @or_result_114
+        */
         match self {
             LOrExp::LAndExp(land_exp) => land_exp.generate(output, info),
             LOrExp::BinaryExp(lor_exp, land_exp) => {
-                let land_id = land_exp.generate(output, info);
-                let lor_id = lor_exp.generate(output, info);
-                //land != 0
-                info.now_id += 1;
-                let land_not_0 = info.now_id;
-                writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
-
-                //lor != 0
-                info.now_id += 1;
-                let lor_not_0 = info.now_id;
-                writeln!(output, "  %{} = ne 0, %{}", lor_not_0, lor_id).unwrap();
-
-                //(lor != 0) | (land != 0)
+                info.and_or_id += 1;
+                let now_and_or_id = info.and_or_id;
+                writeln!(output, "  @or_result_{} = alloc i32", now_and_or_id).unwrap();
+                writeln!(output, "  store 1, @or_result_{}", now_and_or_id).unwrap();
+                let lhs_id = lor_exp.generate(output, info);
+                writeln!(output, "  %lhs_eq_0_{} = eq %{}, 0", now_and_or_id, lhs_id).unwrap();
+                writeln!(
+                    output,
+                    "  br %lhs_eq_0_{}, %calc_rhs_{}, %or_end_{}",
+                    now_and_or_id, now_and_or_id, now_and_or_id
+                )
+                .unwrap();
+                writeln!(output, "%calc_rhs_{}:", now_and_or_id).unwrap();
+                let rhs_id = land_exp.generate(output, info);
+                writeln!(output, "  %rhs_ne_0_{} = ne %{}, 0", now_and_or_id, rhs_id).unwrap();
+                writeln!(
+                    output,
+                    "  store %rhs_ne_0_{}, @or_result_{}",
+                    now_and_or_id, now_and_or_id
+                )
+                .unwrap();
+                writeln!(output, "  jump %or_end_{}", now_and_or_id).unwrap();
+                writeln!(output, "%or_end_{}:", now_and_or_id).unwrap();
                 info.now_id += 1;
                 writeln!(
                     output,
-                    "  %{} = or %{}, %{}",
-                    info.now_id, lor_not_0, land_not_0
+                    "  %{} = load @or_result_{}",
+                    info.now_id, now_and_or_id
                 )
                 .unwrap();
+
                 info.now_id
+                /*
+                    //land != 0
+                    info.now_id += 1;
+                    let land_not_0 = info.now_id;
+                    writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
+
+                    //lor != 0
+                    info.now_id += 1;
+                    let lor_not_0 = info.now_id;
+                    writeln!(output, "  %{} = ne 0, %{}", lor_not_0, lor_id).unwrap();
+
+                    //(lor != 0) | (land != 0)
+                    info.now_id += 1;
+                    writeln!(
+                        output,
+                        "  %{} = or %{}, %{}",
+                        info.now_id, lor_not_0, land_not_0
+                    )
+                    .unwrap();
+                */
             }
         }
     }
