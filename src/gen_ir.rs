@@ -9,6 +9,7 @@ use crate::symbol_table::SymbolType::Const;
 use crate::symbol_table::SymbolType::Var;
 use crate::symbol_table::VarTypeBase;
 
+///用于生成IR的trait
 pub trait GenerateIR {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo);
 }
@@ -46,9 +47,13 @@ impl GenerateIR for FuncType {
 ///为Block实现GenerateIR trait
 impl GenerateIR for Block {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        //目前现在block的GenerateIR trait调用新建block
+        //注意只有FuncDef和Stmt会推导出Block
+        info.push_block();
         for item in &self.items {
             item.generate(output, info);
         }
+        info.pop_block();
     }
 }
 
@@ -66,17 +71,37 @@ impl GenerateIR for BlockItem {
 impl GenerateIR for Stmt {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            Stmt::RetExp(exp) => {
-                exp.generate(output, info);
-                writeln!(output, "  ret %{}", info.now_id).unwrap();
-            }
             Stmt::Assign(lval, exp) => {
                 //赋值语句，LVal必须是变量
                 exp.generate(output, info);
                 let exp_id = info.now_id;
 
-                writeln!(output, "  store %{}, @{}", exp_id, lval.ident).unwrap();
+                writeln!(
+                    output,
+                    "  store %{}, @{}",
+                    exp_id,
+                    info.get_name(&lval.ident).unwrap()
+                )
+                .unwrap();
             }
+            Stmt::Exp(exp) => match exp {
+                Some(exp) => {
+                    exp.generate(output, info);
+                }
+                None => {}
+            },
+            Stmt::Block(block) => {
+                block.generate(output, info);
+            }
+            Stmt::RetExp(exp) => match exp {
+                Some(exp) => {
+                    exp.generate(output, info);
+                    writeln!(output, "  ret %{}", info.now_id).unwrap();
+                }
+                None => {
+                    writeln!(output, "  ret").unwrap();
+                }
+            },
         }
     }
 }
@@ -445,7 +470,7 @@ impl GenerateIR for ConstDef {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self.const_init_val.eval(info) {
             Some(val) => {
-                info.table.insert(self.ident.clone(), Const(val));
+                info.insert_symbol(self.ident.clone(), Const(val));
             }
             None => panic!("detected Var in ConstDef when evaluating"),
         }
@@ -470,17 +495,23 @@ impl GenerateIR for VarDef {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             VarDef::NoInit(ident) => {
-                writeln!(output, "  @{} = alloc i32", ident).unwrap();
-                info.table.insert(ident.clone(), Var(VarTypeBase::new()));
+                info.insert_symbol(ident.clone(), Var(VarTypeBase::new()));
+                writeln!(output, "  @{} = alloc i32", info.get_name(ident).unwrap()).unwrap();
             }
             VarDef::Init(ident, init_val) => {
-                writeln!(output, "  @{} = alloc i32", ident).unwrap();
-                info.table.insert(ident.clone(), Var(VarTypeBase::new()));
+                info.insert_symbol(ident.clone(), Var(VarTypeBase::new()));
+                writeln!(output, "  @{} = alloc i32", info.get_name(ident).unwrap()).unwrap();
 
                 init_val.generate(output, info);
                 let init_val_id = info.now_id;
 
-                writeln!(output, "  store %{}, @{}", init_val_id, ident).unwrap();
+                writeln!(
+                    output,
+                    "  store %{}, @{}",
+                    init_val_id,
+                    info.get_name(&ident).unwrap()
+                )
+                .unwrap();
             }
         }
     }
@@ -513,11 +544,17 @@ impl GenerateIR for LVal {
             .unwrap();
             return;
         }
-        let x = info.table.get(&self.ident).copied().unwrap();
+        let x = info.search_symbol(&self.ident).unwrap();
         info.now_id += 1;
-        match x {
+        match x.content {
             Var(_) => {
-                writeln!(output, "  %{} = load @{}", info.now_id, self.ident).unwrap();
+                writeln!(
+                    output,
+                    "  %{} = load @{}",
+                    info.now_id,
+                    info.get_name(&self.ident).unwrap()
+                )
+                .unwrap();
             }
             Const(val) => {
                 writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();

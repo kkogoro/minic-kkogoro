@@ -214,12 +214,8 @@ impl Eval for PrimaryExp {
 ///可在更上一层调用中就得知LVal是否为常量
 impl Eval for LVal {
     fn eval(&self, info: &mut GenerateIrInfo) -> Option<i32> {
-        let val = info
-            .table
-            .get(&self.ident)
-            .copied()
-            .expect("No Symbol Found!");
-        match val {
+        let val = info.search_symbol(&self.ident).expect("No Symbol Found!");
+        match val.content {
             SymbolType::Const(v) => Some(v),
             SymbolType::Var(_) => None,
         }

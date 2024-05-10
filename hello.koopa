@@ -1,0 +1,14 @@
+fun @main(): i32 {
+%entry:
+  @a_1 = alloc i32
+  %1 = add 1, 0
+  store %1, @a_1
+  %2 = add 2, 0
+  store %2, @a_1
+  @a_2 = alloc i32
+  %3 = add 3, 0
+  store %3, @a_2
+  %4 = load @a_1
+  %5 = add %4, 0
+  ret %5
+}

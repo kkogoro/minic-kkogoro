@@ -41,10 +41,18 @@ fn main() -> Result<()> {
         "-koopa" => {
             let mut info = ds_for_ir::GenerateIrInfo {
                 now_id: 0,
-                table: symbol_table::SymbolTable::new(),
+                now_block_id: 0,
+                //先push一个空的block，编号为0，代表全局?
+                tables: vec![symbol_table::SymbolTable::new()],
+                block_id: vec![0],
+                //table: symbol_table::SymbolTable::new(),
             };
+            println!(
+                "程序开始，两表分别为{:#?}\n{:#?}",
+                info.tables, info.block_id
+            );
             ast.generate(&mut output_file, &mut info);
-            println!("{:#?}", ast);
+            //println!("{:#?}", ast);
             //writeln!(output_file, "{}", my_koppa_ir)?;
         }
         "-riscv" => {
