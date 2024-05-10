@@ -8,6 +8,21 @@ pub struct GenerateIrInfo {
     //pub table: SymbolTable,
     pub tables: Vec<SymbolTable>,
     pub block_id: Vec<i32>,
+    pub if_id: i32,
+}
+
+impl GenerateIrInfo {
+    pub fn new() -> Self {
+        GenerateIrInfo {
+            now_id: 0,
+            now_block_id: 0,
+            //先push一个空的block，编号为0，代表全局?
+            tables: vec![SymbolTable::new()],
+            block_id: vec![0],
+            if_id: 0,
+            //table: symbol_table::SymbolTable::new(),
+        }
+    }
 }
 
 ///用于记录从符号表查询得到的变量信息和所在block深度

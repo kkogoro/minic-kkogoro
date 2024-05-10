@@ -61,12 +61,12 @@ MatchedStmt: Stmt = {
     "return" <exp: (Exp)?> ";" => Stmt::RetExp(<>),
 };
 
-//OpenStmt ::= "if" "(" Exp ")" MatchedStmt ["else" OpenStmt]
+//OpenStmt ::= "if" "(" Exp ")" Stmt
+//           | "if" "(" Exp ")" MatchedStmt "else" OpenStmt
 OpenStmt: Stmt = {
-    //见https://yuhanawa.github.io/posts/2023/57877/#6-%E5%AE%8F-Macros
-    //注意到else是Option<Stmt>类型,需要用map转为Option<Box<Stmt>>
-    "if" "(" <exp: Exp> ")" <stmt: MatchedStmt> <some_else: ("else" <OpenStmt>)?> => 
-      Stmt::If(exp, Box::new(stmt), some_else.map(|(x)| Box::new(x))),
+    "if" "(" <exp: Exp> ")" <stmt: Stmt> => Stmt::If(exp, Box::new(stmt), None),
+    "if" "(" <exp: Exp> ")" <then_stmt: MatchedStmt> "else" <else_stmt: OpenStmt>
+       => Stmt::If(exp, Box::new(then_stmt), Some(Box::new(else_stmt))),
 };
 
 

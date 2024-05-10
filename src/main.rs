@@ -1,28 +1,28 @@
 #[macro_use]
+//使用用于debug的宏
 mod debug_macros;
 
 pub mod ast;
 pub mod calc_exp;
 pub mod ds_for_ir;
+pub mod symbol_table;
 
 #[cfg(feature = "generate-asm")]
 mod gen_asm;
+#[cfg(feature = "generate-asm")]
+use gen_asm::GenerateAsm;
 
 #[cfg(feature = "generate-ir")]
 mod gen_ir;
 #[cfg(feature = "generate-ir")]
 use gen_ir::GenerateIR;
 
-pub mod symbol_table;
-
-//use gen_asm::GenerateAsm;
-
 use lalrpop_util::lalrpop_mod;
 use std::env::args;
 use std::fs::read_to_string;
 use std::fs::File;
 use std::io::Result;
-//use std::io::Write;
+
 // 引用 lalrpop 生成的解析器
 // 因为我们刚刚创建了 sysy.lalrpop, 所以模块名是 sysy
 lalrpop_mod!(sysy);
@@ -49,14 +49,7 @@ fn main() -> Result<()> {
 
     match mode.as_str() {
         "-koopa" => {
-            let mut info = ds_for_ir::GenerateIrInfo {
-                now_id: 0,
-                now_block_id: 0,
-                //先push一个空的block，编号为0，代表全局?
-                tables: vec![symbol_table::SymbolTable::new()],
-                block_id: vec![0],
-                //table: symbol_table::SymbolTable::new(),
-            };
+            let mut info = ds_for_ir::GenerateIrInfo::new();
 
             symbol_table_debug!(
                 "程序开始,符号表和block表分别为{:#?}\n{:#?}",
