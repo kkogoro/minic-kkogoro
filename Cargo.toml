@@ -10,3 +10,13 @@ lalrpop = "0.20.2"
 [dependencies]
 koopa = "0.0.7"
 lalrpop-util = { version = "0.20.2", features = ["lexer"] }
+
+[features]
+# 想启用的debug feature加到这里
+default = []
+# default = ["debug"] 
+
+debug=["symbol-table-debug"]
+
+# symbol-table-debug: 符号表的调试信息
+symbol-table-debug=[]

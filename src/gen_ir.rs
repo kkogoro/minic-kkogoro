@@ -11,11 +11,14 @@ use crate::symbol_table::VarTypeBase;
 
 ///用于生成IR的trait
 pub trait GenerateIR {
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo);
+    ///用于记录不同种类单元的返回情况
+    type GenerateResult;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Self::GenerateResult;
 }
 
 ///为CompUnit实现 GenerateIR trait
 impl GenerateIR for CompUnit {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         self.func_def.generate(output, info);
     }
@@ -23,6 +26,7 @@ impl GenerateIR for CompUnit {
 
 ///为FuncDef实现GenerateIR trait
 impl GenerateIR for FuncDef {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         write!(output, "fun @{}", self.ident).unwrap();
         write!(output, "(): ").unwrap();
@@ -37,6 +41,7 @@ impl GenerateIR for FuncDef {
 
 ///为FuncType实现GenerateIR trait
 impl GenerateIR for FuncType {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, _: &mut GenerateIrInfo) {
         match self {
             FuncType::Int => write!(output, "i32").unwrap(),
@@ -46,6 +51,7 @@ impl GenerateIR for FuncType {
 
 ///为Block实现GenerateIR trait
 impl GenerateIR for Block {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         //目前现在block的GenerateIR trait调用新建block
         //注意只有FuncDef和Stmt会推导出Block
@@ -59,6 +65,7 @@ impl GenerateIR for Block {
 
 ///为BlockItem实现GenerateIR trait
 impl GenerateIR for BlockItem {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             BlockItem::Decl(decl) => decl.generate(output, info),
@@ -69,6 +76,7 @@ impl GenerateIR for BlockItem {
 
 ///为Stmt实现GenerateIR trait
 impl GenerateIR for Stmt {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             Stmt::Assign(lval, exp) => {
@@ -108,6 +116,7 @@ impl GenerateIR for Stmt {
 
 ///为Exp实现GenerateIR trait
 impl GenerateIR for Exp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -129,6 +138,7 @@ impl GenerateIR for Exp {
 
 ///为UnaryExp实现GenerateIR trait
 impl GenerateIR for UnaryExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -166,6 +176,7 @@ impl GenerateIR for UnaryExp {
 
 ///为PrimaryExp实现GenerateIR trait
 impl GenerateIR for PrimaryExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -200,6 +211,7 @@ impl GenerateIR for PrimaryExp {
 
 ///为AddExp实现GenerateIR trait
 impl GenerateIR for AddExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -235,6 +247,7 @@ impl GenerateIR for AddExp {
 
 ///为MulExp实现GenerateIR trait
 impl GenerateIR for MulExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -270,6 +283,7 @@ impl GenerateIR for MulExp {
 
 ///为RelExp实现GenerateIR trait
 impl GenerateIR for RelExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -306,6 +320,7 @@ impl GenerateIR for RelExp {
 
 ///为EqExp实现GenerateIR trait
 impl GenerateIR for EqExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -341,6 +356,7 @@ impl GenerateIR for EqExp {
 ///为LAndExp实现GenerateIR trait
 ///注意应该是实现逻辑and，Koopa IR中的是按位and
 impl GenerateIR for LAndExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -386,6 +402,7 @@ impl GenerateIR for LAndExp {
 
 ///为LOrExp实现GenerateIR trait
 impl GenerateIR for LOrExp {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
@@ -444,6 +461,7 @@ impl GenerateIR for LOrExp {
 
 ///为Decl实现GenerateIR trait
 impl GenerateIR for Decl {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             Decl::ConstDecl(const_decl) => const_decl.generate(output, info),
@@ -454,6 +472,7 @@ impl GenerateIR for Decl {
 
 ///为ConstDecl实现GenerateIR trait
 impl GenerateIR for ConstDecl {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             ConstDecl::ConstDeclS(btype, const_def_s) => {
@@ -467,6 +486,7 @@ impl GenerateIR for ConstDecl {
 
 ///为ConstDef实现GenerateIR trait
 impl GenerateIR for ConstDef {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self.const_init_val.eval(info) {
             Some(val) => {
@@ -479,6 +499,7 @@ impl GenerateIR for ConstDef {
 
 ///为VarDecl实现GenerateIR trait
 impl GenerateIR for VarDecl {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             VarDecl::VarDeclS(btype, var_def_s) => {
@@ -492,6 +513,7 @@ impl GenerateIR for VarDecl {
 
 ///为VarDef实现GenerateIR trait
 impl GenerateIR for VarDef {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             VarDef::NoInit(ident) => {
@@ -519,6 +541,7 @@ impl GenerateIR for VarDef {
 
 ///为InitVal实现GenerateIR trait
 impl GenerateIR for InitVal {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             InitVal::Exp(exp) => {
@@ -531,6 +554,7 @@ impl GenerateIR for InitVal {
 ///为LVal实现GenerateIR trait
 ///作用是取出LVal对应的变量的值，存入info.now_id + 1中
 impl GenerateIR for LVal {
+    type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         let eval_result = self.eval(info);
         if eval_result.is_some() {

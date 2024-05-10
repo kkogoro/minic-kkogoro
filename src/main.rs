@@ -1,3 +1,6 @@
+#[macro_use]
+mod debug_macros;
+
 pub mod ast;
 pub mod calc_exp;
 pub mod ds_for_ir;
@@ -47,10 +50,13 @@ fn main() -> Result<()> {
                 block_id: vec![0],
                 //table: symbol_table::SymbolTable::new(),
             };
-            println!(
-                "程序开始，两表分别为{:#?}\n{:#?}",
-                info.tables, info.block_id
+
+            symbol_table_debug!(
+                "程序开始,符号表和block表分别为{:#?}\n{:#?}",
+                info.tables,
+                info.block_id
             );
+
             ast.generate(&mut output_file, &mut info);
             //println!("{:#?}", ast);
             //writeln!(output_file, "{}", my_koppa_ir)?;

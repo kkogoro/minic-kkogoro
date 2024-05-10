@@ -19,7 +19,8 @@ pub struct SymbolReturn {
 impl GenerateIrInfo {
     ///查询符号表，返回变量信息和所在block深度
     pub fn search_symbol(&self, key: &str) -> Option<SymbolReturn> {
-        println!("search_symbol: key = {}\n表结构为{:#?}", key, self.tables);
+        symbol_table_debug!("search_symbol: key = {}\n表结构为{:#?}", key, self.tables);
+
         for (dep, table) in self.tables.iter().enumerate().rev() {
             if let Some(content) = table.get(key) {
                 return Some(SymbolReturn {
@@ -48,7 +49,8 @@ impl GenerateIrInfo {
     ///插入符号表
     pub fn insert_symbol(&mut self, key: String, value: SymbolType) {
         self.tables.last_mut().unwrap().insert(key, value);
-        println!("插入符号表成功\n表结构为{:#?}", self.tables);
+
+        symbol_table_debug!("插入符号表成功\n表结构为{:#?}", self.tables);
     }
 
     ///新建一个block
@@ -56,19 +58,21 @@ impl GenerateIrInfo {
         self.now_block_id += 1;
         self.block_id.push(self.now_block_id);
         self.tables.push(SymbolTable::new());
-        println!(
+
+        symbol_table_debug!(
             "新建block: {}\n表结构为{:#?}",
-            self.now_block_id, self.tables
+            self.now_block_id,
+            self.tables
         );
     }
 
     ///删除一个block
     pub fn pop_block(&mut self) {
-        println!("删除block: {}", self.block_id.last().unwrap(),);
+        symbol_table_debug!("删除block: {}", self.block_id.last().unwrap(),);
 
         self.block_id.pop();
         self.tables.pop();
 
-        println!("表结构为{:#?}", self.tables);
+        symbol_table_debug!("表结构为{:#?}", self.tables);
     }
 }
