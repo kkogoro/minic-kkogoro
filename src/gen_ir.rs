@@ -71,7 +71,7 @@ impl GenerateIR for FuncDef {
 
             info.insert_symbol(func_fparam.ident.clone(), Var(VarTypeBase::new()));
 
-            write!(output, "@{}: ", info.get_name(&func_fparam.ident).unwrap()).unwrap();
+            write!(output, "%{}: ", info.get_name(&func_fparam.ident).unwrap()).unwrap();
             match &func_fparam.btype {
                 BType::Int => write!(output, "i32 ").unwrap(),
             }
@@ -81,6 +81,15 @@ impl GenerateIR for FuncDef {
         write!(output, " ").unwrap();
         write!(output, "{{\n").unwrap();
         write!(output, "%entry:\n").unwrap();
+
+        //先将形参复制为临时变量，便于后续生成目标代码
+        for func_fparam in &self.func_fparams {
+            let param_name = info.get_name(&func_fparam.ident).unwrap();
+            writeln!(output, "  %{} = alloc i32", param_name).unwrap();
+            writeln!(output, "  store %{}, @{}", param_name, param_name).unwrap();
+            //这里注意到底用%还是@取决于LVal生成的load是啥
+        }
+
         match self.block.generate(output, info) {
             Returned::Yes => {}
             Returned::No => match self.func_type {
