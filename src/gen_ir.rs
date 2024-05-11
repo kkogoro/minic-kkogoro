@@ -63,7 +63,7 @@ impl GenerateIR for FuncDef {
         //这样我们可以保证形参的作用域大于block中的任何变量
         info.push_block();
         info.insert_global_symbol(self.ident.clone(), Func(FuncInfoBase::new(self.func_type)));
-        write!(output, "fun @{}", self.ident).unwrap();
+        write!(output, "fun @{}", info.get_name(&self.ident));
         write!(output, "(").unwrap();
         for (i, func_fparam) in self.func_fparams.iter().enumerate() {
             if i != 0 {
@@ -72,7 +72,7 @@ impl GenerateIR for FuncDef {
 
             info.insert_symbol(func_fparam.ident.clone(), Var(VarInfoBase::new()));
 
-            write!(output, "%{}: ", info.get_name(&func_fparam.ident).unwrap()).unwrap();
+            write!(output, "%{}: ", info.get_name(&func_fparam.ident)).unwrap();
             match &func_fparam.btype {
                 BType::Int => write!(output, "i32").unwrap(),
             }
@@ -89,7 +89,7 @@ impl GenerateIR for FuncDef {
 
         //先将形参复制为临时变量，便于后续生成目标代码
         for func_fparam in &self.func_fparams {
-            let param_name = info.get_name(&func_fparam.ident).unwrap();
+            let param_name = info.get_name(&func_fparam.ident);
             writeln!(output, "  @{} = alloc i32", param_name).unwrap();
             writeln!(output, "  store %{}, @{}", param_name, param_name).unwrap();
             //这里注意到底用%还是@取决于LVal生成的load是啥
@@ -154,7 +154,7 @@ impl GenerateIR for Stmt {
                     output,
                     "  store %{}, @{}",
                     exp_id,
-                    info.get_name(&lval.ident).unwrap()
+                    info.get_name(&lval.ident)
                 )
                 .unwrap();
 
@@ -363,11 +363,17 @@ impl GenerateIR for UnaryExp {
                 match x.content {
                     Func(func_info) => match func_info.ret_type {
                         FuncType::Void => {
-                            write!(output, "  call @{}", ident).unwrap();
+                            write!(output, "  call @{}", info.get_name(&ident)).unwrap();
                         }
                         FuncType::Int => {
                             info.now_id += 1;
-                            write!(output, "  %{} = call @{}", info.now_id, ident).unwrap();
+                            write!(
+                                output,
+                                "  %{} = call @{}",
+                                info.now_id,
+                                info.get_name(&ident)
+                            )
+                            .unwrap();
                         }
                     },
                     _ => panic!("尝试调用非函数"),
@@ -807,11 +813,11 @@ impl GenerateIR for VarDef {
         match self {
             VarDef::NoInit(ident) => {
                 info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                writeln!(output, "  @{} = alloc i32", info.get_name(ident).unwrap()).unwrap();
+                writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
             }
             VarDef::Init(ident, init_val) => {
                 info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                writeln!(output, "  @{} = alloc i32", info.get_name(ident).unwrap()).unwrap();
+                writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
 
                 init_val.generate(output, info);
                 let init_val_id = info.now_id;
@@ -820,7 +826,7 @@ impl GenerateIR for VarDef {
                     output,
                     "  store %{}, @{}",
                     init_val_id,
-                    info.get_name(&ident).unwrap()
+                    info.get_name(&ident)
                 )
                 .unwrap();
             }
@@ -865,7 +871,7 @@ impl GenerateIR for LVal {
                     output,
                     "  %{} = load @{}",
                     info.now_id,
-                    info.get_name(&self.ident).unwrap()
+                    info.get_name(&self.ident)
                 )
                 .unwrap();
             }

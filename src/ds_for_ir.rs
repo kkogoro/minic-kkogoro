@@ -56,19 +56,21 @@ impl GenerateIrInfo {
             key, self.now_block_id, self.tables,
         );
     }
-    ///得到正确**变量**名
-    pub fn get_name(&self, key: &str) -> Option<String> {
+    ///得到正确**变量或函数**名
+    pub fn get_name(&self, key: &str) -> String {
         match self.search_symbol(key) {
             Some(SymbolReturn { content, dep }) => match content {
                 SymbolInfo::Var(_) => match dep {
-                    //全局符号前面加上GLOBAL_关键字
-                    0 => Some("GLOBAL_".to_string() + key),
+                    //全局变量符号前面加上GLOBAL_关键字
+                    0 => "GLOBAL_".to_string() + key,
                     //局部变量前面加上LOCAL_关键字，后面附上block_id
-                    _ => Some(
-                        "LOCAL_".to_string() + key + "_" + &self.block_id[dep as usize].to_string(),
-                    ),
+                    _ => {
+                        "LOCAL_".to_string() + key + "_" + &self.block_id[dep as usize].to_string()
+                    }
                 },
-                _ => panic!("尝试查询函数或常量的名称"),
+                //函数符号前面加上FUNC_关键字
+                SymbolInfo::Func(_) => key.to_string(),
+                _ => panic!("尝试查询常量的名称"),
             },
             None => panic!(
                 "尝试查询不存在的变量: {}\n当前block_id为{}\n符号表结构为{:#?}",
