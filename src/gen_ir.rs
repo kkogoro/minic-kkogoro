@@ -1,3 +1,4 @@
+use std::fmt::write;
 ///!实现生成Koopa IR
 use std::{fs::File, io::Write};
 
@@ -7,12 +8,12 @@ use crate::ast::*;
 use crate::calc_exp::Eval;
 use crate::ds_for_ir::GenerateIrInfo;
 
-use crate::symbol_table::FuncTypeBase;
-use crate::symbol_table::SymbolType;
-use crate::symbol_table::SymbolType::Const;
-use crate::symbol_table::SymbolType::Func;
-use crate::symbol_table::SymbolType::Var;
-use crate::symbol_table::VarTypeBase;
+use crate::symbol_table::FuncInfoBase;
+use crate::symbol_table::SymbolInfo;
+use crate::symbol_table::SymbolInfo::Const;
+use crate::symbol_table::SymbolInfo::Func;
+use crate::symbol_table::SymbolInfo::Var;
+use crate::symbol_table::VarInfoBase;
 
 ///用于生成IR的trait
 pub trait GenerateIR {
@@ -61,7 +62,7 @@ impl GenerateIR for FuncDef {
         //每个函数层都是一个新的作用域层，具体来说是 {func {block} }
         //这样我们可以保证形参的作用域大于block中的任何变量
         info.push_block();
-        info.insert_global_symbol(self.ident.clone(), Func(FuncTypeBase::new()));
+        info.insert_global_symbol(self.ident.clone(), Func(FuncInfoBase::new(self.func_type)));
         write!(output, "fun @{}", self.ident).unwrap();
         write!(output, "(").unwrap();
         for (i, func_fparam) in self.func_fparams.iter().enumerate() {
@@ -69,15 +70,19 @@ impl GenerateIR for FuncDef {
                 write!(output, ", ").unwrap();
             }
 
-            info.insert_symbol(func_fparam.ident.clone(), Var(VarTypeBase::new()));
+            info.insert_symbol(func_fparam.ident.clone(), Var(VarInfoBase::new()));
 
             write!(output, "%{}: ", info.get_name(&func_fparam.ident).unwrap()).unwrap();
             match &func_fparam.btype {
-                BType::Int => write!(output, "i32 ").unwrap(),
+                BType::Int => write!(output, "i32").unwrap(),
             }
         }
-        write!(output, "): ").unwrap();
-        self.func_type.generate(output, info);
+        write!(output, ")").unwrap();
+
+        match self.func_type {
+            FuncType::Int => write!(output, ": i32").unwrap(),
+            FuncType::Void => {}
+        }
         write!(output, " ").unwrap();
         write!(output, "{{\n").unwrap();
         write!(output, "%entry:\n").unwrap();
@@ -85,7 +90,7 @@ impl GenerateIR for FuncDef {
         //先将形参复制为临时变量，便于后续生成目标代码
         for func_fparam in &self.func_fparams {
             let param_name = info.get_name(&func_fparam.ident).unwrap();
-            writeln!(output, "  %{} = alloc i32", param_name).unwrap();
+            writeln!(output, "  @{} = alloc i32", param_name).unwrap();
             writeln!(output, "  store %{}, @{}", param_name, param_name).unwrap();
             //这里注意到底用%还是@取决于LVal生成的load是啥
         }
@@ -100,17 +105,6 @@ impl GenerateIR for FuncDef {
         write!(output, "}}\n").unwrap();
         //记得删除函数层block
         info.pop_block();
-    }
-}
-
-///为FuncType实现GenerateIR trait
-impl GenerateIR for FuncType {
-    type GenerateResult = ();
-    fn generate(&self, output: &mut File, _: &mut GenerateIrInfo) {
-        match self {
-            FuncType::Int => write!(output, "i32").unwrap(),
-            FuncType::Void => write!(output, "void").unwrap(),
-        }
     }
 }
 
@@ -360,8 +354,33 @@ impl GenerateIR for UnaryExp {
                 info.now_id
             }
             UnaryExp::Call(ident, exps) => {
-                //TODO
-                -1
+                //计算每个形参表达式
+                let mut args = vec![];
+                for exp in exps {
+                    args.push(exp.generate(output, info));
+                }
+                let x = info.search_symbol(ident).unwrap();
+                match x.content {
+                    Func(func_info) => match func_info.ret_type {
+                        FuncType::Void => {
+                            write!(output, "  call @{}", ident).unwrap();
+                        }
+                        FuncType::Int => {
+                            info.now_id += 1;
+                            write!(output, "  %{} = call @{}", info.now_id, ident).unwrap();
+                        }
+                    },
+                    _ => panic!("尝试调用非函数"),
+                }
+                write!(output, "(").unwrap();
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 {
+                        write!(output, ", ").unwrap();
+                    }
+                    write!(output, "%{}", arg).unwrap();
+                }
+                writeln!(output, ")").unwrap();
+                info.now_id
             }
         }
     }
@@ -787,11 +806,11 @@ impl GenerateIR for VarDef {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
             VarDef::NoInit(ident) => {
-                info.insert_symbol(ident.clone(), Var(VarTypeBase::new()));
+                info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
                 writeln!(output, "  @{} = alloc i32", info.get_name(ident).unwrap()).unwrap();
             }
             VarDef::Init(ident, init_val) => {
-                info.insert_symbol(ident.clone(), Var(VarTypeBase::new()));
+                info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
                 writeln!(output, "  @{} = alloc i32", info.get_name(ident).unwrap()).unwrap();
 
                 init_val.generate(output, info);

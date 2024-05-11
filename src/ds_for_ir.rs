@@ -1,5 +1,5 @@
+use crate::symbol_table::SymbolInfo;
 use crate::symbol_table::SymbolTable;
-use crate::symbol_table::SymbolType;
 
 #[derive(Debug)]
 pub struct GenerateIrInfo {
@@ -34,7 +34,7 @@ impl GenerateIrInfo {
 
 ///用于记录从符号表查询得到的变量信息和所在block深度
 pub struct SymbolReturn {
-    pub content: SymbolType,
+    pub content: SymbolInfo,
     pub dep: i32,
 }
 
@@ -51,13 +51,16 @@ impl GenerateIrInfo {
                 });
             }
         }
-        None
+        panic!(
+            "尝试查询不存在的变量: {}\n当前block_id为{}\n符号表结构为{:#?}",
+            key, self.now_block_id, self.tables,
+        );
     }
     ///得到正确**变量**名
     pub fn get_name(&self, key: &str) -> Option<String> {
         match self.search_symbol(key) {
             Some(SymbolReturn { content, dep }) => match content {
-                SymbolType::Var(_) => match dep {
+                SymbolInfo::Var(_) => match dep {
                     //全局符号前面加上GLOBAL_关键字
                     0 => Some("GLOBAL_".to_string() + key),
                     //局部变量前面加上LOCAL_关键字，后面附上block_id
@@ -65,7 +68,7 @@ impl GenerateIrInfo {
                         "LOCAL_".to_string() + key + "_" + &self.block_id[dep as usize].to_string(),
                     ),
                 },
-                _ => panic!("尝试查询常量的名称"),
+                _ => panic!("尝试查询函数或常量的名称"),
             },
             None => panic!(
                 "尝试查询不存在的变量: {}\n当前block_id为{}\n符号表结构为{:#?}",
@@ -77,13 +80,13 @@ impl GenerateIrInfo {
     //TODO: 检测符号表重复插入，避免符号覆盖
 
     ///插入符号表
-    pub fn insert_symbol(&mut self, key: String, value: SymbolType) {
+    pub fn insert_symbol(&mut self, key: String, value: SymbolInfo) {
         self.tables.last_mut().unwrap().insert(key, value);
 
         symbol_table_debug!("插入符号表成功\n表结构为{:#?}", self.tables);
     }
     ///插入全局符号，全局符号表就是tables[0]
-    pub fn insert_global_symbol(&mut self, key: String, value: SymbolType) {
+    pub fn insert_global_symbol(&mut self, key: String, value: SymbolInfo) {
         self.tables[0].insert(key, value);
         symbol_table_debug!("插入全局符号表成功\n表结构为{:#?}", self.tables);
     }

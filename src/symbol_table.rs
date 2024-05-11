@@ -2,30 +2,34 @@
 
 use std::collections::HashMap;
 
+use crate::ast::FuncType;
+
 #[derive(Debug, Copy, Clone)]
-pub struct VarTypeBase {}
+pub struct VarInfoBase {}
 #[derive(Debug, Copy, Clone)]
-pub struct FuncTypeBase {}
-#[derive(Debug, Copy, Clone)]
-pub enum SymbolType {
-    Const(i32),
-    Var(VarTypeBase),
-    Func(FuncTypeBase),
+pub struct FuncInfoBase {
+    pub ret_type: FuncType,
 }
-impl FuncTypeBase {
-    pub fn new() -> Self {
-        FuncTypeBase {}
+impl FuncInfoBase {
+    pub fn new(ret_type: FuncType) -> Self {
+        FuncInfoBase { ret_type }
     }
 }
-impl VarTypeBase {
+#[derive(Debug, Copy, Clone)]
+pub enum SymbolInfo {
+    Const(i32),
+    Var(VarInfoBase),
+    Func(FuncInfoBase),
+}
+impl VarInfoBase {
     pub fn new() -> Self {
-        VarTypeBase {}
+        VarInfoBase {}
     }
 }
 
 #[derive(Debug)]
 pub struct SymbolTable {
-    table: HashMap<String, SymbolType>,
+    table: HashMap<String, SymbolInfo>,
 }
 
 impl SymbolTable {
@@ -35,11 +39,11 @@ impl SymbolTable {
         }
     }
 
-    pub fn insert(&mut self, key: String, value: SymbolType) {
+    pub fn insert(&mut self, key: String, value: SymbolInfo) {
         self.table.insert(key, value);
     }
 
-    pub fn get(&self, key: &str) -> Option<&SymbolType> {
+    pub fn get(&self, key: &str) -> Option<&SymbolInfo> {
         self.table.get(key)
     }
 }

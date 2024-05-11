@@ -31,7 +31,7 @@ pub struct FuncFParam {
     pub ident: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 ///FuncType    ::= "void" | "int";
 /// 枚举类型，表示函数的返回值类型
 pub enum FuncType {

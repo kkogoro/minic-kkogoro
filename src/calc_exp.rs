@@ -1,7 +1,7 @@
 ///!实现生成表达式静态求值
 use crate::ast::*;
 use crate::ds_for_ir::GenerateIrInfo;
-use crate::symbol_table::SymbolType;
+use crate::symbol_table::SymbolInfo;
 
 pub trait Eval {
     fn eval(&self, info: &mut GenerateIrInfo) -> Option<i32>;
@@ -217,7 +217,7 @@ impl Eval for LVal {
     fn eval(&self, info: &mut GenerateIrInfo) -> Option<i32> {
         let val = info.search_symbol(&self.ident).expect("No Symbol Found!");
         match val.content {
-            SymbolType::Const(v) => Some(v),
+            SymbolInfo::Const(v) => Some(v),
             _ => None,
         }
     }
