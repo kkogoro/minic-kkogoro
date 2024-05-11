@@ -1,8 +1,8 @@
-# miniC compiler
+# Learn Rust in a miniC compiler project
 
-用Rust实现的SysY to RISC-V编译器。
+一边学习Rust一边实现的SysY to RISC-V编译器。
 
-一边学习Rust一边完成这个项目,可能有很多不地道的写法,我还在修正中。
+由于我是Rust初学者,代码中有很多不地道的写法,我还在修正中。
 
 前端从SysY生成Koopa IR,后端从Koopa IR生成RISC-V。
 
@@ -19,7 +19,7 @@
 - [x] lv5
 - [x] lv6
 - [x] lv7
-- [ ] lv8
+- [x] lv8
 - [ ] lv9
 
 ---
