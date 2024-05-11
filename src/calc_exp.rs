@@ -218,7 +218,7 @@ impl Eval for LVal {
         let val = info.search_symbol(&self.ident).expect("No Symbol Found!");
         match val.content {
             SymbolType::Const(v) => Some(v),
-            SymbolType::Var(_) => None,
+            _ => None,
         }
     }
 }

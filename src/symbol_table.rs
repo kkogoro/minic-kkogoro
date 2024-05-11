@@ -5,11 +5,18 @@ use std::collections::HashMap;
 #[derive(Debug, Copy, Clone)]
 pub struct VarTypeBase {}
 #[derive(Debug, Copy, Clone)]
+pub struct FuncTypeBase {}
+#[derive(Debug, Copy, Clone)]
 pub enum SymbolType {
     Const(i32),
     Var(VarTypeBase),
+    Func(FuncTypeBase),
 }
-
+impl FuncTypeBase {
+    pub fn new() -> Self {
+        FuncTypeBase {}
+    }
+}
 impl VarTypeBase {
     pub fn new() -> Self {
         VarTypeBase {}

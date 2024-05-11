@@ -7,7 +7,10 @@ use crate::ast::*;
 use crate::calc_exp::Eval;
 use crate::ds_for_ir::GenerateIrInfo;
 
+use crate::symbol_table::FuncTypeBase;
+use crate::symbol_table::SymbolType;
 use crate::symbol_table::SymbolType::Const;
+use crate::symbol_table::SymbolType::Func;
 use crate::symbol_table::SymbolType::Var;
 use crate::symbol_table::VarTypeBase;
 
@@ -28,7 +31,26 @@ pub enum Returned {
 impl GenerateIR for CompUnit {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
-        self.func_def.generate(output, info);
+        symbol_table_debug!(
+            "程序开始,符号表和block表分别为{:#?}\n{:#?}",
+            info.tables,
+            info.block_id
+        );
+        for item in &self.item {
+            item.generate(output, info);
+        }
+    }
+}
+
+///为CompItem实现GenerateIR trait
+impl GenerateIR for CompItem {
+    type GenerateResult = ();
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        match self {
+            CompItem::FuncDef(func_def) => {
+                func_def.generate(output, info);
+            }
+        }
     }
 }
 
@@ -36,8 +58,25 @@ impl GenerateIR for CompUnit {
 impl GenerateIR for FuncDef {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+        //每个函数层都是一个新的作用域层，具体来说是 {func {block} }
+        //这样我们可以保证形参的作用域大于block中的任何变量
+        info.push_block();
+        info.insert_global_symbol(self.ident.clone(), Func(FuncTypeBase::new()));
         write!(output, "fun @{}", self.ident).unwrap();
-        write!(output, "(): ").unwrap();
+        write!(output, "(").unwrap();
+        for (i, func_fparam) in self.func_fparams.iter().enumerate() {
+            if i != 0 {
+                write!(output, ", ").unwrap();
+            }
+
+            info.insert_symbol(func_fparam.ident.clone(), Var(VarTypeBase::new()));
+
+            write!(output, "@{}: ", info.get_name(&func_fparam.ident).unwrap()).unwrap();
+            match &func_fparam.btype {
+                BType::Int => write!(output, "i32 ").unwrap(),
+            }
+        }
+        write!(output, "): ").unwrap();
         self.func_type.generate(output, info);
         write!(output, " ").unwrap();
         write!(output, "{{\n").unwrap();
@@ -46,10 +85,12 @@ impl GenerateIR for FuncDef {
             Returned::Yes => {}
             Returned::No => match self.func_type {
                 FuncType::Int => writeln!(output, "  ret 0").unwrap(),
-                _ => writeln!(output, "  ret").unwrap(), //TODO以后有void函数再改
+                FuncType::Void => writeln!(output, "  ret").unwrap(),
             },
         }
         write!(output, "}}\n").unwrap();
+        //记得删除函数层block
+        info.pop_block();
     }
 }
 
@@ -59,6 +100,7 @@ impl GenerateIR for FuncType {
     fn generate(&self, output: &mut File, _: &mut GenerateIrInfo) {
         match self {
             FuncType::Int => write!(output, "i32").unwrap(),
+            FuncType::Void => write!(output, "void").unwrap(),
         }
     }
 }
@@ -307,6 +349,10 @@ impl GenerateIR for UnaryExp {
                     }
                 }
                 info.now_id
+            }
+            UnaryExp::Call(ident, exps) => {
+                //TODO
+                -1
             }
         }
     }
@@ -797,6 +843,9 @@ impl GenerateIR for LVal {
             }
             Const(val) => {
                 writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+            }
+            Func(_) => {
+                panic!("尝试查询函数的值");
             }
         }
     }

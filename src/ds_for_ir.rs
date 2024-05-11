@@ -20,6 +20,7 @@ impl GenerateIrInfo {
             now_id: 0,
             now_block_id: 0,
             //先push一个空的block，编号为0，代表全局?
+            //这里的block是对作用域的抽象，和任何符号无关
             tables: vec![SymbolTable::new()],
             block_id: vec![0],
             if_id: 0,
@@ -56,9 +57,14 @@ impl GenerateIrInfo {
     pub fn get_name(&self, key: &str) -> Option<String> {
         match self.search_symbol(key) {
             Some(SymbolReturn { content, dep }) => match content {
-                SymbolType::Var(_) => {
-                    Some("var_".to_string() + key + "_" + &self.block_id[dep as usize].to_string())
-                }
+                SymbolType::Var(_) => match dep {
+                    //全局符号前面加上GLOBAL_关键字
+                    0 => Some("GLOBAL_".to_string() + key),
+                    //局部变量前面加上LOCAL_关键字，后面附上block_id
+                    _ => Some(
+                        "LOCAL_".to_string() + key + "_" + &self.block_id[dep as usize].to_string(),
+                    ),
+                },
                 _ => panic!("尝试查询常量的名称"),
             },
             None => panic!(
@@ -67,11 +73,19 @@ impl GenerateIrInfo {
             ),
         }
     }
+
+    //TODO: 检测符号表重复插入，避免符号覆盖
+
     ///插入符号表
     pub fn insert_symbol(&mut self, key: String, value: SymbolType) {
         self.tables.last_mut().unwrap().insert(key, value);
 
         symbol_table_debug!("插入符号表成功\n表结构为{:#?}", self.tables);
+    }
+    ///插入全局符号，全局符号表就是tables[0]
+    pub fn insert_global_symbol(&mut self, key: String, value: SymbolType) {
+        self.tables[0].insert(key, value);
+        symbol_table_debug!("插入全局符号表成功\n表结构为{:#?}", self.tables);
     }
 
     ///新建一个block

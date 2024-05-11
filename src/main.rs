@@ -51,12 +51,6 @@ fn main() -> Result<()> {
         "-koopa" => {
             let mut info = ds_for_ir::GenerateIrInfo::new();
 
-            symbol_table_debug!(
-                "程序开始,符号表和block表分别为{:#?}\n{:#?}",
-                info.tables,
-                info.block_id
-            );
-
             #[cfg(feature = "print-AST")]
             println!("{:#?}", ast);
 
