@@ -86,6 +86,9 @@ impl GenerateIR for CompItem {
             CompItem::FuncDef(func_def) => {
                 func_def.generate(output, info);
             }
+            CompItem::Decl(decl) => {
+                decl.generate(output, info);
+            }
         }
     }
 }
@@ -848,22 +851,41 @@ impl GenerateIR for VarDef {
         match self {
             VarDef::NoInit(ident) => {
                 info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
+                match info.is_global_symbol(ident) {
+                    true => writeln!(
+                        output,
+                        "global  @{} = alloc i32, zeroinit",
+                        info.get_name(ident)
+                    )
+                    .unwrap(),
+                    false => writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap(),
+                }
             }
             VarDef::Init(ident, init_val) => {
                 info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
+                match info.is_global_symbol(ident) {
+                    true => writeln!(
+                        output,
+                        "global  @{} = alloc i32, {}",
+                        info.get_name(ident),
+                        init_val.eval(info).unwrap()
+                    )
+                    .unwrap(),
+                    false => {
+                        writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
 
-                init_val.generate(output, info);
-                let init_val_id = info.now_id;
+                        init_val.generate(output, info);
+                        let init_val_id = info.now_id;
 
-                writeln!(
-                    output,
-                    "  store %{}, @{}",
-                    init_val_id,
-                    info.get_name(&ident)
-                )
-                .unwrap();
+                        writeln!(
+                            output,
+                            "  store %{}, @{}",
+                            init_val_id,
+                            info.get_name(&ident)
+                        )
+                        .unwrap();
+                    }
+                }
             }
         }
     }

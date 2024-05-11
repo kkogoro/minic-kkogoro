@@ -222,3 +222,12 @@ impl Eval for LVal {
         }
     }
 }
+
+///为InitVal实现Eval trait
+impl Eval for InitVal {
+    fn eval(&self, info: &mut GenerateIrInfo) -> Option<i32> {
+        match self {
+            InitVal::Exp(exp) => exp.eval(info),
+        }
+    }
+}

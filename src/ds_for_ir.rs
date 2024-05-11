@@ -56,6 +56,23 @@ impl GenerateIrInfo {
             key, self.now_block_id, self.tables,
         );
     }
+    ///查询当前符号是否为全局符号
+    pub fn is_global_symbol(&self, key: &str) -> bool {
+        match self.search_symbol(key) {
+            Some(SymbolReturn { content, dep }) => match content {
+                SymbolInfo::Var(_) => match dep {
+                    0 => true,
+                    _ => false,
+                },
+                SymbolInfo::Func(_) => true,
+                _ => panic!("尝试查询常量的全局性"),
+            },
+            None => panic!(
+                "尝试查询不存在的符号: {}\n当前block_id为{}\n符号表结构为{:#?}",
+                key, self.now_block_id, self.tables,
+            ),
+        }
+    }
     ///得到正确**变量或函数**名
     pub fn get_name(&self, key: &str) -> String {
         match self.search_symbol(key) {

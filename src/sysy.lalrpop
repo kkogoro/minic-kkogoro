@@ -18,31 +18,26 @@ match {
 //CompUnit    ::= {CompItem};
 pub CompUnit: CompUnit = <item: (CompItem)*> => CompUnit { <> };
 
-//CompItem   ::= FuncDef;
+//CompItem   ::= FuncDef | Decl;
 CompItem: CompItem = {
   <func_def: FuncDef> => CompItem::FuncDef(<>),
+  <decl: Decl> => CompItem::Decl(<>),
 };
 
 
 //FuncDef     ::= FuncType IDENT "(" [FuncFParams] ")" Block;
 FuncDef: FuncDef = {
-  <func_type: FuncType> <ident: Ident> "(" <func_fparams: Comma<FuncFParam> > ")" 
-    <block: Block> => FuncDef{<>},
+  "int" <ident: Ident> "(" <func_fparams: Comma<FuncFParam> > ")" 
+    <block: Block> => FuncDef{func_type: FuncType::Int, <>},
+  "void" <ident: Ident> "(" <func_fparams: Comma<FuncFParam> > ")" 
+    <block: Block> => FuncDef{func_type: FuncType::Void, ident, func_fparams, block},  
   //FuncFParams ::= FuncFParam {"," FuncFParam};
 };
 
 
 //FuncFParam  ::= BType IDENT;
 FuncFParam: FuncFParam = {
-  <btype: BType> <ident: Ident> => FuncFParam{<>},
-};
-
-
-
-//FuncType    ::= "void" | "int";
-FuncType: FuncType = {
-    "int" => FuncType::Int,
-    "void" => FuncType::Void,
+  "int" <ident: Ident> => FuncFParam{btype: BType::Int, <>},
 };
 
 
@@ -222,8 +217,8 @@ Decl: Decl = {
 
 //ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
 ConstDecl: ConstDecl = {
-  "const" <btype: BType> <constdef_s: Comma<ConstDef> > ";" => {
-    ConstDecl::ConstDeclS(btype, constdef_s)
+  "const" "int" <constdef_s: Comma<ConstDef> > ";" => {
+    ConstDecl::ConstDeclS(BType::Int, constdef_s)
   }
 } 
 
@@ -240,10 +235,11 @@ Comma<T>: Vec<T> = {
   }
 }
 
+//由于移进规约冲突，省掉了
 //BType         ::= "int";
-BType: BType = {
-  "int" => BType::Int,
-}
+//BType: BType = {
+//  "int" => BType::Int,
+//}
 
 //ConstDef      ::= IDENT "=" ConstInitVal;
 ConstDef: ConstDef = {
@@ -264,8 +260,8 @@ ConstExp: ConstExp = {
 
 //VarDecl       ::= BType VarDef {"," VarDef} ";";
 VarDecl: VarDecl = {
-  <btype: BType> <vardef_s: Comma<VarDef> > ";" => {
-    VarDecl::VarDeclS(btype, vardef_s)
+  "int" <vardef_s: Comma<VarDef> > ";" => {
+    VarDecl::VarDeclS(BType::Int, vardef_s)
   }
 }
 

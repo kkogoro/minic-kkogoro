@@ -9,10 +9,11 @@ pub struct CompUnit {
 }
 
 #[derive(Debug)]
-///CompItem   ::= FuncDef;
+///CompItem   ::= FuncDef | Decl ;
 ///TODO
 pub enum CompItem {
     FuncDef(FuncDef),
+    Decl(Decl),
 }
 
 #[derive(Debug)]
