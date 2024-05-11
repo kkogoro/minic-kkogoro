@@ -37,6 +37,41 @@ impl GenerateIR for CompUnit {
             info.tables,
             info.block_id
         );
+        //先加入所有SysY库函数的声明
+        let lib_func_def = "decl @getint(): i32\n".to_string()
+            + "decl @getch(): i32\n"
+            + "decl @getarray(*i32): i32\n"
+            + "decl @putint(i32)\n"
+            + "decl @putch(i32)\n"
+            + "decl @putarray(i32, *i32)\n"
+            + "decl @starttime()\n"
+            + "decl @stoptime()\n";
+        writeln!(output, "{}", lib_func_def).unwrap();
+        //然后把它们插入到全局符号表
+        info.insert_global_symbol("getint".to_string(), Func(FuncInfoBase::new(FuncType::Int)));
+        info.insert_global_symbol("getch".to_string(), Func(FuncInfoBase::new(FuncType::Int)));
+        info.insert_global_symbol(
+            "getarray".to_string(),
+            Func(FuncInfoBase::new(FuncType::Int)),
+        );
+        info.insert_global_symbol(
+            "putint".to_string(),
+            Func(FuncInfoBase::new(FuncType::Void)),
+        );
+        info.insert_global_symbol("putch".to_string(), Func(FuncInfoBase::new(FuncType::Void)));
+        info.insert_global_symbol(
+            "putarray".to_string(),
+            Func(FuncInfoBase::new(FuncType::Void)),
+        );
+        info.insert_global_symbol(
+            "starttime".to_string(),
+            Func(FuncInfoBase::new(FuncType::Void)),
+        );
+        info.insert_global_symbol(
+            "stoptime".to_string(),
+            Func(FuncInfoBase::new(FuncType::Void)),
+        );
+
         for item in &self.item {
             item.generate(output, info);
         }
@@ -63,7 +98,7 @@ impl GenerateIR for FuncDef {
         //这样我们可以保证形参的作用域大于block中的任何变量
         info.push_block();
         info.insert_global_symbol(self.ident.clone(), Func(FuncInfoBase::new(self.func_type)));
-        write!(output, "fun @{}", info.get_name(&self.ident));
+        write!(output, "fun @{}", info.get_name(&self.ident)).unwrap();
         write!(output, "(").unwrap();
         for (i, func_fparam) in self.func_fparams.iter().enumerate() {
             if i != 0 {
