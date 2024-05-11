@@ -194,6 +194,7 @@ impl Eval for UnaryExp {
                     }
                 },
             },
+            UnaryExp::Call(_, _) => None,
         }
     }
 }

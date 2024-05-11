@@ -3,24 +3,40 @@
 ///////////////////////////BaseAST////////////////////////////
 
 #[derive(Debug)]
-///CompUnit is BaseAST
+///CompUnit    ::= {CompItem};
 pub struct CompUnit {
-    pub func_def: FuncDef,
+    pub item: Vec<CompItem>,
 }
 
 #[derive(Debug)]
-///FuncDef is BaseAST
+///CompItem   ::= FuncDef;
+///TODO
+pub enum CompItem {
+    FuncDef(FuncDef),
+}
+
+#[derive(Debug)]
+///FuncDef     ::= FuncType IDENT "(" [FuncFParams] ")" Block;
 pub struct FuncDef {
     pub func_type: FuncType,
-    pub ident: String, //IDENT
+    pub ident: String,                 //IDENT
+    pub func_fparams: Vec<FuncFParam>, //FuncFParams ::= FuncFParam {"," FuncFParam};
     pub block: Block,
 }
 
 #[derive(Debug)]
-///FuncType is BaseAST
+///FuncFParam  ::= BType IDENT;
+pub struct FuncFParam {
+    pub btype: BType,
+    pub ident: String,
+}
+
+#[derive(Debug)]
+///FuncType    ::= "void" | "int";
 /// 枚举类型，表示函数的返回值类型
 pub enum FuncType {
     Int,
+    Void,
 }
 
 #[derive(Debug)]
@@ -65,10 +81,13 @@ pub enum Exp {
 }
 
 #[derive(Debug)]
-///UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+///UnaryExp    ::= PrimaryExp
+///             | UnaryOp UnaryExp;
+///             | IDENT "(" [FuncRParams] ")"
 pub enum UnaryExp {
     PrimaryExp(Box<PrimaryExp>),
     BinaryOp(UnaryOp, Box<UnaryExp>), //改名
+    Call(String, Vec<Exp>),           //FuncRParams ::= Exp {"," Exp};
 }
 
 #[derive(Debug)]

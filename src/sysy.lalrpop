@@ -14,19 +14,35 @@ match {
   _
 }
 
-// 定义 CompUnit, 其返回值类型为 String
-// parser 在解析完成后的行为是返回 FuncDef 的值
-//pub CompUnit: String = <func_def: FuncDef> => func_def;
-pub CompUnit: CompUnit = <func_def: FuncDef> => CompUnit { <> };
 
+//CompUnit    ::= {CompItem};
+pub CompUnit: CompUnit = <item: (CompItem)*> => CompUnit { <> };
+
+//CompItem   ::= FuncDef;
+CompItem: CompItem = {
+  <func_def: FuncDef> => CompItem::FuncDef(<>),
+};
+
+
+//FuncDef     ::= FuncType IDENT "(" [FuncFParams] ")" Block;
 FuncDef: FuncDef = {
-  <func_type: FuncType> <ident: Ident> "(" ")" <block: Block> => {
-    FuncDef { <> }
-  }
-}
+  <func_type: FuncType> <ident: Ident> "(" <func_fparams: Comma<FuncFParam> > ")" 
+    <block: Block> => FuncDef{<>},
+  //FuncFParams ::= FuncFParam {"," FuncFParam};
+};
 
+
+//FuncFParam  ::= BType IDENT;
+FuncFParam: FuncFParam = {
+  <btype: BType> <ident: Ident> => FuncFParam{<>},
+};
+
+
+
+//FuncType    ::= "void" | "int";
 FuncType: FuncType = {
     "int" => FuncType::Int,
+    "void" => FuncType::Void,
 };
 
 
@@ -127,11 +143,16 @@ BinaryMulOp: BinaryMulOp = {
   "%" => BinaryMulOp::Mod,
 }
 
-//UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+//UnaryExp    ::= PrimaryExp
+//             | UnaryOp UnaryExp;
+//             | IDENT "(" [FuncRParams] ")"
 UnaryExp: UnaryExp = {
   <primary_exp: PrimaryExp> => UnaryExp::PrimaryExp(Box::new(primary_exp)),
   <unary_op: UnaryOp> <unary_exp: UnaryExp> => UnaryExp::BinaryOp(unary_op, Box::new(unary_exp)),
+  <ident: Ident> "(" <func_rparams: Comma<Exp> > ")" //FuncRParams ::= Exp {"," Exp};
+    => UnaryExp::Call(ident, func_rparams),
 }
+
 
 //PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 PrimaryExp: PrimaryExp = {
@@ -207,6 +228,7 @@ ConstDecl: ConstDecl = {
 } 
 
 //Comma宏
+//用于识别空或T或T,T,...,T的字符串，返回Vec<T>
 //见https://yuhanawa.github.io/posts/2023/57877/#6-%E5%AE%8F-Macros
 Comma<T>: Vec<T> = {
   <mut v:(<T> ",")*> <e:T?> => match e {
