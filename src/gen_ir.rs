@@ -893,7 +893,9 @@ impl GenerateIR for VarDef {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match &self.init_val {
             None => {
+                //没有初值
                 if self.dims.is_empty() {
+                    //纯变量，非数组
                     info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
                     match info.is_global_symbol(&self.ident) {
                         true => writeln!(
@@ -907,10 +909,13 @@ impl GenerateIR for VarDef {
                     }
                 } else {
                     //TODO : 未初始化变量数组声明
+                    //生成维度声明并加入符号表
+                    self.gen_def_dim(output, info);
                 }
             }
             Some(init_val) => {
                 if self.dims.is_empty() {
+                    //纯变量，非数组
                     info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
                     match info.is_global_symbol(&self.ident) {
                         true => writeln!(
@@ -938,6 +943,8 @@ impl GenerateIR for VarDef {
                     }
                 } else {
                     //TODO : 初始化变量数组声明
+                    //生成维度声明并加入符号表
+                    self.gen_def_dim(output, info);
                 }
             }
         }
