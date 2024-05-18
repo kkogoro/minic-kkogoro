@@ -1,3 +1,4 @@
+use core::panic;
 use std::fmt::write;
 use std::mem::Discriminant;
 use std::result;
@@ -15,8 +16,8 @@ use crate::array_solve::GlobalArrayInit;
 use crate::array_solve::LocalArrayInit;
 use crate::symbol_table::ArrayInfoBase;
 use crate::symbol_table::FuncInfoBase;
-use crate::symbol_table::SymbolInfo;
 use crate::symbol_table::SymbolInfo::Array;
+use crate::symbol_table::SymbolInfo::ArrayPointer;
 use crate::symbol_table::SymbolInfo::Const;
 use crate::symbol_table::SymbolInfo::Func;
 use crate::symbol_table::SymbolInfo::Var;
@@ -124,7 +125,29 @@ impl GenerateIR for FuncDef {
                     }
                 }
                 Some(dims) => {
-                    panic!("TODO");
+                    if i != 0 {
+                        write!(output, ", ").unwrap();
+                    }
+
+                    let mut real_dims: Vec<i32> = vec![];
+                    for dim in dims {
+                        real_dims.push(dim.eval(info).expect("数组维度中出现非常量表达式"));
+                    }
+                    //插入符号表，标明是**数组指针**！
+                    info.insert_symbol(
+                        func_fparam.ident.clone(),
+                        ArrayPointer(ArrayInfoBase {
+                            dims: real_dims.clone(), //borrow
+                        }),
+                    );
+
+                    write!(output, "%{}: *", info.get_name(&func_fparam.ident)).unwrap();
+
+                    let left = "[".to_string().repeat(real_dims.len()); //TODO : repeat 0 ?
+                    write!(output, "{}i32", left).unwrap();
+                    for dim in real_dims.iter().rev() {
+                        write!(output, ", {}]", dim).unwrap();
+                    }
                 }
             }
         }
@@ -148,7 +171,20 @@ impl GenerateIR for FuncDef {
                     //这里注意到底用%还是@取决于LVal生成的load是啥
                 }
                 Some(dims) => {
-                    panic!("TODO");
+                    let param_name = info.get_name(&func_fparam.ident);
+                    write!(output, "  @{} = alloc *", param_name).unwrap();
+                    let mut real_dims: Vec<i32> = vec![];
+                    for dim in dims {
+                        real_dims.push(dim.eval(info).expect("数组维度中出现非常量表达式"));
+                    }
+                    let left = "[".to_string().repeat(real_dims.len()); //TODO : repeat 0 ?
+                    write!(output, "{}i32", left).unwrap();
+                    for dim in real_dims.iter().rev() {
+                        write!(output, ", {}]", dim).unwrap();
+                    }
+                    writeln!(output, "").unwrap(); //换行
+
+                    writeln!(output, "  store %{}, @{}", param_name, param_name).unwrap();
                 }
             }
         }
@@ -207,21 +243,54 @@ impl GenerateIR for Stmt {
                 //赋值语句
                 let exp_id = exp.generate(output, info); //计算右端exp的值
 
-                if lval.dims.is_empty() {
-                    //LVal是变量
+                let x = info.search_symbol(&lval.ident).unwrap();
 
-                    writeln!(
-                        output,
-                        "  store %{}, @{}",
-                        exp_id,
-                        info.get_name(&lval.ident)
-                    )
-                    .unwrap();
-                } else {
-                    //LVal是数组
-                    //先计算目标位置的地址
-                    let array_ptr_id = lval.generate(output, info);
-                    writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
+                match x.content {
+                    Var(_) => {
+                        //如果是变量
+                        let lval_id = lval.generate(output, info);
+                        writeln!(
+                            output,
+                            "  store %{}, @{}",
+                            exp_id,
+                            info.get_name(&lval.ident)
+                        )
+                        .unwrap();
+                    }
+                    Array(array_info) => {
+                        //如果是数组
+                        //先计算目标位置的地址
+                        let lval_result = lval.generate(output, info);
+
+                        match lval_result {
+                            LvalResult::PointerArray(_) => {
+                                //如果是数组指针
+                                panic!("尝试向数组指针赋值");
+                            }
+                            LvalResult::Pointer(array_ptr_id) => {
+                                //如果是指针
+                                writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
+                            }
+                            _ => panic!("数组解引用出了常数？"),
+                        }
+                    }
+                    ArrayPointer(array_info) => {
+                        //如果是数组指针
+                        let lval_result = lval.generate(output, info);
+
+                        match lval_result {
+                            LvalResult::PointerArray(_) => {
+                                //如果是数组指针
+                                panic!("尝试向数组指针赋值");
+                            }
+                            LvalResult::Pointer(array_ptr_id) => {
+                                //如果是指针
+                                writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
+                            }
+                            _ => panic!("数组指针解引用出了常数？"),
+                        }
+                    }
+                    _ => panic!("尝试对常量赋值"),
                 }
                 Returned::No
             }
@@ -483,18 +552,64 @@ impl GenerateIR for PrimaryExp {
                 info.now_id
             }
             PrimaryExp::LVal(lval) => {
-                if lval.dims.is_empty() {
-                    //如果是变量
-                    let lval_id = lval.generate(output, info);
-                    info.now_id += 1;
-                    writeln!(output, "  %{} = add %{}, 0", info.now_id, lval_id).unwrap();
-                } else {
-                    //如果是数组
-                    let lval_id = lval.generate(output, info);
-                    info.now_id += 1;
-                    writeln!(output, "  %{} = load %{}", info.now_id, lval_id).unwrap();
+                let x = info.search_symbol(&lval.ident).unwrap();
+
+                match x.content {
+                    Const(num) => {
+                        //如果是常量
+                        info.now_id += 1;
+                        writeln!(output, "  %{} = add {}, 0", info.now_id, num).unwrap();
+                        return info.now_id;
+                    }
+                    Var(_) => {
+                        //如果是变量
+                        if let LvalResult::Value(lval_id) = lval.generate(output, info) {
+                            info.now_id += 1; //TODO 有必要吗？？？
+                            writeln!(output, "  %{} = add %{}, 0", info.now_id, lval_id).unwrap();
+                            return info.now_id;
+                        } else {
+                            panic!("尝试使用数组作为PrimaryExp");
+                        }
+                    }
+                    //这俩好像可以合并 TODO
+                    Array(array_info) => {
+                        //如果是数组
+                        let lval_result = lval.generate(output, info);
+                        match lval_result {
+                            LvalResult::PointerArray(array_ptr_id) => {
+                                //如果是数组指针
+                                return array_ptr_id;
+                            }
+                            LvalResult::Pointer(array_id) => {
+                                //如果是指针
+                                info.now_id += 1;
+                                writeln!(output, "  %{} = load %{}", info.now_id, array_id)
+                                    .unwrap();
+                                return info.now_id;
+                            }
+                            _ => panic!("数组解引用出了常数？"),
+                        }
+                    }
+                    ArrayPointer(array_info) => {
+                        //如果是数组指针
+                        let lval_result = lval.generate(output, info);
+                        match lval_result {
+                            LvalResult::PointerArray(array_ptr_id) => {
+                                //如果是数组指针
+                                return array_ptr_id;
+                            }
+                            LvalResult::Pointer(array_id) => {
+                                //如果是指针
+                                info.now_id += 1;
+                                writeln!(output, "  %{} = load %{}", info.now_id, array_id)
+                                    .unwrap();
+                                return info.now_id;
+                            }
+                            _ => panic!("数组指针解引用出了常数？"),
+                        }
+                    }
+                    _ => panic!("尝试使用函数作为PrimaryExp"),
                 }
-                info.now_id
             }
         }
     }
@@ -952,7 +1067,7 @@ impl GenerateIR for VarDef {
             match &self.init_val {
                 None => {
                     //没有初值
-                    //TODO : 未初始化变量数组声明
+                    //未初始化变量数组声明
                     match info.is_global_symbol(&self.ident) {
                         true => {
                             //全局未初始化自动初始化为0
@@ -993,7 +1108,6 @@ impl GenerateIR for VarDef {
                             let mut result: Vec<i32> = vec![];
                             init_val.local_array_init(output, info, &real_dims, &mut result);
                             if result.len() == 0 {
-                                //局部变量数组初值是{}，咋办?不管？ TODO
                                 panic!("可能由数组初值为{{}}引起");
                             } else {
                                 //TODO
@@ -1022,9 +1136,7 @@ impl GenerateIR for InitVal {
             InitVal::Exp(exp) => {
                 exp.generate(output, info);
             }
-            _ => {
-                //TODO : 数组的初始化列表
-            }
+            _ => {} //TODO:好像不会到这个分支
         }
     }
 }
@@ -1032,9 +1144,14 @@ impl GenerateIR for InitVal {
 ///为LVal实现GenerateIR trait
 ///作用是取出LVal对应的变量的值，存入返回值中
 ///或者是将数组对应位置的指针值放在返回值中
+pub enum LvalResult {
+    PointerArray(i32), //部分解引用的数组 *[i32][[[]]]
+    Pointer(i32),      //完全解引用的数组 *i32
+    Value(i32),
+}
 impl GenerateIR for LVal {
-    type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    type GenerateResult = LvalResult;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> LvalResult {
         let x = info.search_symbol(&self.ident).unwrap();
         match x.content {
             Var(_) => {
@@ -1049,7 +1166,7 @@ impl GenerateIR for LVal {
                         eval_result.unwrap()
                     )
                     .unwrap();
-                    return info.now_id;
+                    return LvalResult::Value(info.now_id);
                 } //如果可以编译期间计算，直接返回计算结果
 
                 info.now_id += 1;
@@ -1060,13 +1177,13 @@ impl GenerateIR for LVal {
                     info.get_name(&self.ident)
                 )
                 .unwrap();
-                info.now_id
+                LvalResult::Value(info.now_id)
             }
             Const(val) => {
                 //LVal是常量
                 info.now_id += 1;
                 writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
-                info.now_id
+                LvalResult::Value(info.now_id)
             }
             Array(array_info) => {
                 //LVal是数组
@@ -1092,8 +1209,70 @@ impl GenerateIR for LVal {
                         info.now_id, last_base_string
                     )
                     .unwrap();
+                    return LvalResult::PointerArray(info.now_id);
+                } else {
+                    //完全解引用
+                    return LvalResult::Pointer(info.now_id);
                 }
-                info.now_id
+            }
+            ArrayPointer(array_info) => {
+                //LVal是数组指针
+
+                info.now_id += 1; //先把数组指针读出来：从**[]读到*[]
+                writeln!(
+                    output,
+                    "  %{} = load @{}",
+                    info.now_id,
+                    info.get_name(&self.ident)
+                )
+                .unwrap();
+
+                //这个值代表的是就是数组指针的值
+                let mut last_base_string = "%".to_string() + &info.now_id.to_string();
+
+                if self.dims.is_empty() {
+                    //直接访问数组指针？
+                    return LvalResult::PointerArray(info.now_id);
+                }
+
+                for (i, dim) in self.dims.iter().enumerate() {
+                    //然后用getelemptr解决剩下的维度
+                    let dim_id = dim.generate(output, info);
+                    info.now_id += 1;
+                    if i != 0 {
+                        writeln!(
+                            output,
+                            "  %{} = getelemptr {}, %{}",
+                            info.now_id, last_base_string, dim_id
+                        )
+                        .unwrap();
+                    } else {
+                        //首先用getptr解决第一维
+                        writeln!(
+                            output,
+                            "  %{} = getptr {}, %{}",
+                            info.now_id, last_base_string, dim_id
+                        )
+                        .unwrap();
+                    }
+
+                    last_base_string = "%".to_owned() + info.now_id.to_string().as_str();
+                }
+
+                if array_info.dims.len() + 1 > self.dims.len() {
+                    //部分解引用
+                    info.now_id += 1;
+                    writeln!(
+                        output,
+                        "  %{} = getelemptr {}, 0",
+                        info.now_id, last_base_string
+                    )
+                    .unwrap();
+                    return LvalResult::PointerArray(info.now_id);
+                } else {
+                    //完全解引用
+                    return LvalResult::Pointer(info.now_id);
+                }
             }
             Func(_) => {
                 panic!("尝试查询函数的值");

@@ -24,7 +24,8 @@ pub enum SymbolInfo {
     Const(i32),
     Var(VarInfoBase),
     Func(FuncInfoBase),
-    Array(ArrayInfoBase),
+    Array(ArrayInfoBase),        //vec:[2,3] => [[i32, 3], 2]
+    ArrayPointer(ArrayInfoBase), //vec:[2,3] => *[[i32, 3], 2] vec:[] => *i32
 }
 impl VarInfoBase {
     pub fn new() -> Self {

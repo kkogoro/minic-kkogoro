@@ -69,6 +69,10 @@ impl GenerateIrInfo {
                     0 => true,
                     _ => false,
                 },
+                SymbolInfo::ArrayPointer(_) => match dep {
+                    0 => true,
+                    _ => false,
+                },
                 SymbolInfo::Const(_) => panic!("尝试查询常量的全局性"),
             },
             None => panic!(
@@ -100,6 +104,17 @@ impl GenerateIrInfo {
                     _ => {
                         //局部数组前面加上LOCAL_ARRAY关键字，后面附上block_id
                         "LOCAL_ARRAY_".to_string()
+                            + key
+                            + "_"
+                            + &self.block_id[dep as usize].to_string()
+                    }
+                },
+                SymbolInfo::ArrayPointer(_) => match dep {
+                    //全局数组指针符号前面加上GLOBAL_ARRAY_POINTER关键字
+                    0 => "GLOBAL_ARRAY_POINTER_".to_string() + key,
+                    _ => {
+                        //局部数组指针前面加上LOCAL_ARRAY_POINTER关键字，后面附上block_id
+                        "LOCAL_ARRAY_POINTER_".to_string()
                             + key
                             + "_"
                             + &self.block_id[dep as usize].to_string()
