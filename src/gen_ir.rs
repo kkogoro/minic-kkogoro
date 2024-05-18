@@ -110,15 +110,22 @@ impl GenerateIR for FuncDef {
         write!(output, "fun @{}", info.get_name(&self.ident)).unwrap();
         write!(output, "(").unwrap();
         for (i, func_fparam) in self.func_fparams.iter().enumerate() {
-            if i != 0 {
-                write!(output, ", ").unwrap();
-            }
+            match &func_fparam.dims {
+                None => {
+                    if i != 0 {
+                        write!(output, ", ").unwrap();
+                    }
 
-            info.insert_symbol(func_fparam.ident.clone(), Var(VarInfoBase::new()));
+                    info.insert_symbol(func_fparam.ident.clone(), Var(VarInfoBase::new()));
 
-            write!(output, "%{}: ", info.get_name(&func_fparam.ident)).unwrap();
-            match &func_fparam.btype {
-                BType::Int => write!(output, "i32").unwrap(),
+                    write!(output, "%{}: ", info.get_name(&func_fparam.ident)).unwrap();
+                    match &func_fparam.btype {
+                        BType::Int => write!(output, "i32").unwrap(),
+                    }
+                }
+                Some(dims) => {
+                    panic!("TODO");
+                }
             }
         }
         write!(output, ")").unwrap();
@@ -133,10 +140,17 @@ impl GenerateIR for FuncDef {
 
         //先将形参复制为临时变量，便于后续生成目标代码
         for func_fparam in &self.func_fparams {
-            let param_name = info.get_name(&func_fparam.ident);
-            writeln!(output, "  @{} = alloc i32", param_name).unwrap();
-            writeln!(output, "  store %{}, @{}", param_name, param_name).unwrap();
-            //这里注意到底用%还是@取决于LVal生成的load是啥
+            match &func_fparam.dims {
+                None => {
+                    let param_name = info.get_name(&func_fparam.ident);
+                    writeln!(output, "  @{} = alloc i32", param_name).unwrap();
+                    writeln!(output, "  store %{}, @{}", param_name, param_name).unwrap();
+                    //这里注意到底用%还是@取决于LVal生成的load是啥
+                }
+                Some(dims) => {
+                    panic!("TODO");
+                }
+            }
         }
 
         match self.block.generate(output, info) {
@@ -409,6 +423,7 @@ impl GenerateIR for UnaryExp {
                 let mut args = vec![];
                 for exp in exps {
                     args.push(exp.generate(output, info));
+                    //TODO????
                 }
                 let x = info.search_symbol(ident).unwrap();
                 match x.content {
@@ -1014,61 +1029,69 @@ impl GenerateIR for InitVal {
 impl GenerateIR for LVal {
     type GenerateResult = i32;
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
-        if self.dims.is_empty() {
-            //如果dims为空，则不是数组
-            let eval_result = self.eval(info);
-            if eval_result.is_some() {
-                info.now_id += 1;
-                writeln!(
-                    output,
-                    "  %{} = add {}, 0",
-                    info.now_id,
-                    eval_result.unwrap()
-                )
-                .unwrap();
-                return info.now_id;
-            } //如果可以编译期间计算，直接返回计算结果
-
-            let x = info.search_symbol(&self.ident).unwrap();
-            info.now_id += 1;
-            match x.content {
-                Var(_) => {
+        let x = info.search_symbol(&self.ident).unwrap();
+        match x.content {
+            Var(_) => {
+                //LVal是变量
+                let eval_result = self.eval(info);
+                if eval_result.is_some() {
+                    info.now_id += 1;
                     writeln!(
                         output,
-                        "  %{} = load @{}",
+                        "  %{} = add {}, 0",
                         info.now_id,
-                        info.get_name(&self.ident)
+                        eval_result.unwrap()
                     )
                     .unwrap();
-                    info.now_id
-                }
-                Const(val) => {
-                    writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
-                    info.now_id
-                }
-                Array(_) => {
-                    panic!("尝试查询数组指针的值");
-                }
-                Func(_) => {
-                    panic!("尝试查询函数的值");
-                }
-            }
-        } else {
-            //如果dims不为空，则是数组
-            //将数组的指针存入返回值中
-            let mut last_base_string = "@".to_string() + &info.get_name(&self.ident);
-            for dim in &self.dims {
-                let dim_id = dim.generate(output, info);
+                    return info.now_id;
+                } //如果可以编译期间计算，直接返回计算结果
+
                 info.now_id += 1;
                 writeln!(
                     output,
-                    "  %{} = getelemptr {}, %{}",
-                    info.now_id, last_base_string, dim_id
+                    "  %{} = load @{}",
+                    info.now_id,
+                    info.get_name(&self.ident)
                 )
                 .unwrap();
-                last_base_string = "%".to_owned() + info.now_id.to_string().as_str();
+                info.now_id
             }
-            info.now_id
+            Const(val) => {
+                //LVal是常量
+                info.now_id += 1;
+                writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+                info.now_id
+            }
+            Array(array_info) => {
+                //LVal是数组
+                //将数组的指针存入返回值中（可能部分解引用）
+                let mut last_base_string = "@".to_string() + &info.get_name(&self.ident);
+                for dim in &self.dims {
+                    let dim_id = dim.generate(output, info);
+                    info.now_id += 1;
+                    writeln!(
+                        output,
+                        "  %{} = getelemptr {}, %{}",
+                        info.now_id, last_base_string, dim_id
+                    )
+                    .unwrap();
+                    last_base_string = "%".to_owned() + info.now_id.to_string().as_str();
+                }
+                if array_info.dims.len() > self.dims.len() {
+                    //部分解引用
+                    info.now_id += 1;
+                    writeln!(
+                        output,
+                        "  %{} = getelemptr {}, 0",
+                        info.now_id, last_base_string
+                    )
+                    .unwrap();
+                }
+                info.now_id
+            }
+            Func(_) => {
+                panic!("尝试查询函数的值");
+            }
         }
     }
 }
