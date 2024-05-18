@@ -891,38 +891,38 @@ impl GenerateIR for VarDecl {
 impl GenerateIR for VarDef {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
-        match self {
-            VarDef::NoInit(ident, dims) => {
-                if dims.is_empty() {
-                    info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                    match info.is_global_symbol(ident) {
+        match &self.init_val {
+            None => {
+                if self.dims.is_empty() {
+                    info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
+                    match info.is_global_symbol(&self.ident) {
                         true => writeln!(
                             output,
                             "global  @{} = alloc i32, zeroinit",
-                            info.get_name(ident)
+                            info.get_name(&self.ident)
                         )
                         .unwrap(),
-                        false => {
-                            writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap()
-                        }
+                        false => writeln!(output, "  @{} = alloc i32", info.get_name(&self.ident))
+                            .unwrap(),
                     }
                 } else {
                     //TODO : 未初始化变量数组声明
                 }
             }
-            VarDef::Init(ident, dims, init_val) => {
-                if dims.is_empty() {
-                    info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                    match info.is_global_symbol(ident) {
+            Some(init_val) => {
+                if self.dims.is_empty() {
+                    info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
+                    match info.is_global_symbol(&self.ident) {
                         true => writeln!(
                             output,
                             "global  @{} = alloc i32, {}",
-                            info.get_name(ident),
+                            info.get_name(&self.ident),
                             init_val.eval(info).unwrap()
                         )
                         .unwrap(),
                         false => {
-                            writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
+                            writeln!(output, "  @{} = alloc i32", info.get_name(&self.ident))
+                                .unwrap();
 
                             init_val.generate(output, info);
                             let init_val_id = info.now_id;
@@ -931,7 +931,7 @@ impl GenerateIR for VarDef {
                                 output,
                                 "  store %{}, @{}",
                                 init_val_id,
-                                info.get_name(&ident)
+                                info.get_name(&self.ident)
                             )
                             .unwrap();
                         }

@@ -269,12 +269,8 @@ VarDecl: VarDecl = {
 //VarDef        ::= IDENT {"[" ConstExp "]"}
 //                | IDENT {"[" ConstExp "]"} "=" InitVal;
 VarDef: VarDef = {
-  <ident: Ident> < dims : ("[" <ConstExp> "]")* > => {
-    VarDef::NoInit(ident, dims)
-  },
-  <ident: Ident> < dims : ("[" <ConstExp> "]")* > "=" <init_val: InitVal> => {
-    VarDef::Init(ident, dims, init_val)
-  },
+  <ident: Ident> < dims : ("[" <ConstExp> "]")* > <init_val: ( "=" <InitVal>)?>
+     => VarDef{<>}
 }
 
 

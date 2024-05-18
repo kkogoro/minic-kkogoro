@@ -237,9 +237,10 @@ pub enum VarDecl {
 #[derive(Debug)]
 ///VarDef        ::= IDENT {"[" ConstExp "]"}
 ///                | IDENT {"[" ConstExp "]"} "=" InitVal;
-pub enum VarDef {
-    NoInit(String, Vec<ConstExp>),
-    Init(String, Vec<ConstExp>, InitVal),
+pub struct VarDef {
+    pub ident: String,
+    pub dims: Vec<ConstExp>,
+    pub init_val: Option<InitVal>,
 }
 
 #[derive(Debug)]
