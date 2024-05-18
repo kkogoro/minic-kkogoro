@@ -185,8 +185,7 @@ impl GenerateIR for Stmt {
         match self {
             Stmt::Assign(lval, exp) => {
                 //赋值语句，LVal必须是变量
-                exp.generate(output, info);
-                let exp_id = info.now_id;
+                let exp_id = exp.generate(output, info);
 
                 writeln!(
                     output,

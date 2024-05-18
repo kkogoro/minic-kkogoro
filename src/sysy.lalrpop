@@ -89,9 +89,9 @@ OpenStmt: Stmt = {
 };
 
 
-//LVal          ::= IDENT;
+//LVal          ::= IDENT {"[" Exp "]"};
 LVal: LVal = {
-    <ident: Ident> => LVal{<>},
+    <ident: Ident> < dims : ("[" <Exp> "]")*> => LVal{<>},
 };
 
 Number: i32 = {
@@ -241,16 +241,17 @@ Comma<T>: Vec<T> = {
 //  "int" => BType::Int,
 //}
 
-//ConstDef      ::= IDENT "=" ConstInitVal;
+//ConstDef      ::= IDENT {"[" ConstExp "]"} "=" ConstInitVal;
 ConstDef: ConstDef = {
-  <ident: Ident> "=" <const_init_val: ConstInitVal> => {
+  <ident: Ident> < dims : ("[" <ConstExp> "]")* > "=" <const_init_val: ConstInitVal> => {
     ConstDef{<>}
   }
 }
 
-//ConstInitVal  ::= ConstExp;
+//ConstInitVal  ::= ConstExp | "{" [ConstInitVal {"," ConstInitVal}] "}";
 ConstInitVal: ConstInitVal = {
-  <const_exp: ConstExp> => ConstInitVal::ConstExp(const_exp)
+  <const_exp: ConstExp> => ConstInitVal::ConstExp(const_exp),
+  "{" <const_init_val_s: Comma<ConstInitVal> > "}" => ConstInitVal::ConstInitValS(const_init_val_s),
 }
 
 //ConstExp      ::= Exp;
@@ -265,18 +266,21 @@ VarDecl: VarDecl = {
   }
 }
 
-//VarDef        ::= IDENT | IDENT "=" InitVal;
+//VarDef        ::= IDENT {"[" ConstExp "]"}
+//                | IDENT {"[" ConstExp "]"} "=" InitVal;
 VarDef: VarDef = {
-  <ident: Ident> "=" <init_val: InitVal> => {
-    VarDef::Init(ident, init_val)
+  <ident: Ident> < dims : ("[" <ConstExp> "]")* > => {
+    VarDef::NoInit(ident, dims)
   },
-  <ident: Ident> => {
-    VarDef::NoInit(ident)
-  }
+  <ident: Ident> < dims : ("[" <ConstExp> "]")* > "=" <init_val: InitVal> => {
+    VarDef::Init(ident, dims, init_val)
+  },
 }
 
-//InitVal       ::= Exp;
+
+//InitVal       ::= Exp | "{" [InitVal {"," InitVal}] "}";
 InitVal: InitVal = {
-  <exp: Exp> => InitVal::Exp(exp)
+  <exp: Exp> => InitVal::Exp(exp),
+  "{" <init_val_s: Comma<InitVal> > "}" => InitVal::InitValS(init_val_s),
 }
 

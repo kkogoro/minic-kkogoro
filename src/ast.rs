@@ -200,16 +200,18 @@ pub enum BType {
 }
 
 #[derive(Debug)]
-///ConstDef      ::= IDENT "=" ConstInitVal;
+///ConstDef      ::= IDENT {"[" ConstExp "]"} "=" ConstInitVal;
 pub struct ConstDef {
     pub ident: String,
+    pub dims: Vec<ConstExp>,
     pub const_init_val: ConstInitVal,
 }
 
 #[derive(Debug)]
-///ConstInitVal  ::= ConstExp;
+///ConstInitVal  ::= ConstExp | "{" [ConstInitVal {"," ConstInitVal}] "}";
 pub enum ConstInitVal {
     ConstExp(ConstExp),
+    ConstInitValS(Vec<ConstInitVal>),
 }
 
 #[derive(Debug)]
@@ -219,10 +221,11 @@ pub enum ConstExp {
 }
 
 #[derive(Debug)]
-///LVal          ::= IDENT;
+///LVal          ::= IDENT {"[" Exp "]"};
 /// IDENT对应Ident
 pub struct LVal {
     pub ident: String,
+    pub dims: Vec<Exp>,
 }
 
 #[derive(Debug)]
@@ -232,14 +235,16 @@ pub enum VarDecl {
 }
 
 #[derive(Debug)]
-///VarDef        ::= IDENT | IDENT "=" InitVal;
+///VarDef        ::= IDENT {"[" ConstExp "]"}
+///                | IDENT {"[" ConstExp "]"} "=" InitVal;
 pub enum VarDef {
-    NoInit(String),
-    Init(String, InitVal),
+    NoInit(String, Vec<ConstExp>),
+    Init(String, Vec<ConstExp>, InitVal),
 }
 
 #[derive(Debug)]
-///InitVal       ::= Exp;
+///InitVal       ::= Exp | "{" [InitVal {"," InitVal}] "}";
 pub enum InitVal {
     Exp(Exp),
+    InitValS(Vec<InitVal>),
 }

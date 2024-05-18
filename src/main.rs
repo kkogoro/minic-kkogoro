@@ -3,7 +3,6 @@
 mod debug_macros;
 
 pub mod ast;
-pub mod calc_exp;
 pub mod ds_for_ir;
 pub mod symbol_table;
 
@@ -12,6 +11,8 @@ mod gen_asm;
 #[cfg(feature = "generate-asm")]
 use gen_asm::GenerateAsm;
 
+#[cfg(feature = "generate-ir")]
+pub mod calc_exp;
 #[cfg(feature = "generate-ir")]
 mod gen_ir;
 #[cfg(feature = "generate-ir")]
