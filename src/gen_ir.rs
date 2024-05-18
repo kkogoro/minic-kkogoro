@@ -1,5 +1,6 @@
 use std::fmt::write;
 use std::mem::Discriminant;
+use std::result;
 ///!实现生成Koopa IR
 use std::{fs::File, io::Write};
 
@@ -11,6 +12,7 @@ use crate::ds_for_ir::GenerateIrInfo;
 
 use crate::array_solve::GenDefDim;
 use crate::array_solve::GlobalArrayInit;
+use crate::array_solve::LocalArrayInit;
 use crate::symbol_table::ArrayInfoBase;
 use crate::symbol_table::FuncInfoBase;
 use crate::symbol_table::SymbolInfo;
@@ -687,21 +689,6 @@ impl GenerateIR for LAndExp {
                 )
                 .unwrap();
                 info.now_id
-                /*
-                    //land != 0
-                    info.now_id += 1;
-                    let land_not_0 = info.now_id;
-                    writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
-
-                    //(eq != 0) & (land != 0)
-                    info.now_id += 1;
-                    writeln!(
-                        output,
-                        "  %{} = and %{}, %{}",
-                        info.now_id, land_not_0, eq_not_0
-                    )
-                    .unwrap();
-                */
             }
         }
     }
@@ -784,26 +771,6 @@ impl GenerateIR for LOrExp {
                 .unwrap();
 
                 info.now_id
-                /*
-                    //land != 0
-                    info.now_id += 1;
-                    let land_not_0 = info.now_id;
-                    writeln!(output, "  %{} = ne 0, %{}", land_not_0, land_id).unwrap();
-
-                    //lor != 0
-                    info.now_id += 1;
-                    let lor_not_0 = info.now_id;
-                    writeln!(output, "  %{} = ne 0, %{}", lor_not_0, lor_id).unwrap();
-
-                    //(lor != 0) | (land != 0)
-                    info.now_id += 1;
-                    writeln!(
-                        output,
-                        "  %{} = or %{}, %{}",
-                        info.now_id, lor_not_0, land_not_0
-                    )
-                    .unwrap();
-                */
             }
         }
     }
@@ -856,50 +823,32 @@ impl GenerateIR for ConstDef {
             //填充初始化内容表
             let mut result: Vec<i32> = vec![];
             self.const_init_val
-                .gen_array_init(output, info, &real_dims, &mut result);
+                .global_array_init(output, info, &real_dims, &mut result);
 
             //为全局生成初始化内容，为局部生成初始化指令
             match info.is_global_symbol(&self.ident) {
                 true => {
                     if result.len() == 0 {
-                        //初始值是{}，初始化为0
-                        writeln!(output, ", zeroinit").unwrap();
+                        panic!("可能由数组初值为{{}}引起");
                     } else {
                         write!(output, ", ").unwrap();
                         gen_global_array_ir(output, &real_dims, &result, 0);
-                        /*
-                        write!(output, ", {{").unwrap();
-                        for (i, val) in result.iter().enumerate() {
-                            if i != 0 {
-                                write!(output, ", ").unwrap();
-                            }
-                            write!(output, "{}", val).unwrap();
-                        }
-                        write!(output, "}}").unwrap();
-                        */
                     }
                 }
                 false => {
-                    //局部变量数组初始化
-                    /*
-                    let mut total_size = 1;
-                    for dim in &real_dims {
-                        total_size *= dim;
-                    }
-                    let mut init_val = self.const_init_val.eval(info).unwrap();
-                    for i in 0..total_size {
-                        let val = init_val % 256;
-                        init_val /= 256;
-                        writeln!(
+                    //局部常量数组初始化
+                    if result.len() == 0 {
+                        panic!("可能由数组初值为{{}}引起");
+                    } else {
+                        gen_local_const_array_ir(
                             output,
-                            "  store {}, @{}[{}]",
-                            val,
-                            info.get_name(&self.ident),
-                            i
-                        )
-                        .unwrap();
+                            info,
+                            &real_dims,
+                            &result,
+                            0,
+                            "@".to_string() + &info.get_name(&self.ident),
+                        );
                     }
-                    */
                 }
             }
 
@@ -993,26 +942,48 @@ impl GenerateIR for VarDef {
                             writeln!(output, ", zeroinit").unwrap();
                         }
                         false => {
-                            //局部变量数组未初始化不用管（？） TODO
+                            //局部变量数组未初始化不用管!
+                            /*
+                            SysY规范：未显式初始化的局部变量, 其值是不确定的;
+                            而未显式初始化的全局变量, 其 (元素) 值均被初始化为 0.
+                            */
                         }
                     }
                 }
                 Some(init_val) => {
                     //有初值的变量数组初始化
-                    let mut result: Vec<i32> = vec![];
-                    init_val.gen_array_init(output, info, &real_dims, &mut result);
+
                     match info.is_global_symbol(&self.ident) {
                         true => {
                             //全局有初值变量数组
+                            let mut result: Vec<i32> = vec![];
+                            init_val.global_array_init(output, info, &real_dims, &mut result);
                             if result.len() == 0 {
                                 //初始值是{}，初始化为0
-                                writeln!(output, ", zeroinit").unwrap();
+                                panic!("可能由数组初值为{{}}引起");
                             } else {
                                 write!(output, ", ").unwrap();
                                 gen_global_array_ir(output, &real_dims, &result, 0);
                             }
                         }
-                        false => { //局部有初值变量数组 TODO
+                        false => {
+                            //局部有初值变量数组
+                            let mut result: Vec<i32> = vec![];
+                            init_val.local_array_init(output, info, &real_dims, &mut result);
+                            if result.len() == 0 {
+                                //局部变量数组初值是{}，咋办?不管？ TODO
+                                panic!("可能由数组初值为{{}}引起");
+                            } else {
+                                //TODO
+                                gen_local_var_array_ir(
+                                    output,
+                                    info,
+                                    &real_dims,
+                                    &result,
+                                    0,
+                                    "@".to_string() + &info.get_name(&self.ident),
+                                );
+                            }
                         }
                     }
                 }
@@ -1102,6 +1073,7 @@ impl GenerateIR for LVal {
     }
 }
 
+///为全局数组生成代码
 fn gen_global_array_ir(output: &mut File, dims: &[i32], result: &Vec<i32>, now_pos: i32) {
     if dims.is_empty() {
         //到达叶子
@@ -1123,5 +1095,79 @@ fn gen_global_array_ir(output: &mut File, dims: &[i32], result: &Vec<i32>, now_p
         }
 
         write!(output, "}}").unwrap();
+    }
+}
+
+///为局部变量数组生成代码
+fn gen_local_var_array_ir(
+    output: &mut File,
+    info: &mut GenerateIrInfo,
+    dims: &[i32],
+    result: &Vec<i32>,
+    now_pos: i32,
+    ptr: String,
+) {
+    if dims.is_empty() {
+        //到达叶子
+        if result[now_pos as usize] == 0 {
+            writeln!(output, "  store 0, {}", ptr).unwrap();
+        } else {
+            writeln!(output, "  store %{}, {}", result[now_pos as usize], ptr).unwrap();
+        }
+    } else {
+        //未到达叶子
+        //计算增量，是dims[1..]的乘积
+        let mut delta: i32 = 1;
+        for dim in &dims[1..] {
+            delta *= dim;
+        }
+
+        for i in 0..dims[0] {
+            info.now_id += 1;
+            writeln!(output, "  %{} = getelemptr {}, {}", info.now_id, ptr, i).unwrap();
+            gen_local_var_array_ir(
+                output,
+                info,
+                &dims[1..],
+                result,
+                now_pos + delta * i,
+                "%".to_owned() + info.now_id.to_string().as_str(),
+            );
+        }
+    }
+}
+
+///为局部常量数组生成代码
+fn gen_local_const_array_ir(
+    output: &mut File,
+    info: &mut GenerateIrInfo,
+    dims: &[i32],
+    result: &Vec<i32>,
+    now_pos: i32,
+    ptr: String,
+) {
+    if dims.is_empty() {
+        //到达叶子
+        writeln!(output, "  store {}, {}", result[now_pos as usize], ptr).unwrap();
+    } else {
+        //未到达叶子
+        //计算增量，是dims[1..]的乘积
+        let mut delta: i32 = 1;
+        for dim in &dims[1..] {
+            delta *= dim;
+        }
+
+        for i in 0..dims[0] {
+            info.now_id += 1;
+            writeln!(output, "  %{} = getelemptr {}, {}", info.now_id, ptr, i).unwrap();
+            gen_local_const_array_ir(
+                output,
+                info,
+                &dims[1..],
+                result,
+                now_pos + delta * i,
+                "%".to_owned() + info.now_id.to_string().as_str(),
+            );
+        }
     }
 }
