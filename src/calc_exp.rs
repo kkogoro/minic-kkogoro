@@ -12,6 +12,7 @@ impl Eval for ConstInitVal {
     fn eval(&self, info: &mut GenerateIrInfo) -> Option<i32> {
         match self {
             ConstInitVal::ConstExp(const_exp) => const_exp.eval(info),
+            _ => None, //不支持对带有花括号的数组初值列表求值
         }
     }
 }
@@ -228,6 +229,7 @@ impl Eval for InitVal {
     fn eval(&self, info: &mut GenerateIrInfo) -> Option<i32> {
         match self {
             InitVal::Exp(exp) => exp.eval(info),
+            _ => None, //不支持对带有花括号的数组初值列表求值
         }
     }
 }

@@ -46,7 +46,7 @@ impl GenerateIrInfo {
         for (dep, table) in self.tables.iter().enumerate().rev() {
             if let Some(content) = table.get(key) {
                 return Some(SymbolReturn {
-                    content: *content,
+                    content: content.clone(),
                     dep: dep as i32,
                 });
             }
@@ -65,7 +65,11 @@ impl GenerateIrInfo {
                     _ => false,
                 },
                 SymbolInfo::Func(_) => true,
-                _ => panic!("尝试查询常量的全局性"),
+                SymbolInfo::Array(_) => match dep {
+                    0 => true,
+                    _ => false,
+                },
+                SymbolInfo::Const(_) => panic!("尝试查询常量的全局性"),
             },
             None => panic!(
                 "尝试查询不存在的符号: {}\n当前block_id为{}\n符号表结构为{:#?}",
@@ -87,7 +91,18 @@ impl GenerateIrInfo {
                 },
                 //函数符号前面加上FUNC_关键字
                 SymbolInfo::Func(_) => key.to_string(),
-                _ => panic!("尝试查询常量的名称"),
+                SymbolInfo::Array(_) => match dep {
+                    //全局数组符号前面加上GLOBAL_ARRAY关键字
+                    0 => "GLOBAL_ARRAY_".to_string() + key,
+                    _ => {
+                        //局部数组前面加上LOCAL_ARRAY关键字，后面附上block_id
+                        "LOCAL_ARRAY_".to_string()
+                            + key
+                            + "_"
+                            + &self.block_id[dep as usize].to_string()
+                    }
+                },
+                SymbolInfo::Const(_) => panic!("尝试查询常量的名称"),
             },
             None => panic!(
                 "尝试查询不存在的变量: {}\n当前block_id为{}\n符号表结构为{:#?}",

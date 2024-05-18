@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use crate::ast::FuncType;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)] //移除了copy
 pub struct VarInfoBase {}
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct FuncInfoBase {
     pub ret_type: FuncType,
 }
@@ -15,15 +15,25 @@ impl FuncInfoBase {
         FuncInfoBase { ret_type }
     }
 }
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
+pub struct ArrayInfoBase {
+    pub dims: Vec<i32>,
+}
+#[derive(Debug, Clone)]
 pub enum SymbolInfo {
     Const(i32),
     Var(VarInfoBase),
     Func(FuncInfoBase),
+    Array(ArrayInfoBase),
 }
 impl VarInfoBase {
     pub fn new() -> Self {
         VarInfoBase {}
+    }
+}
+impl ArrayInfoBase {
+    pub fn new() -> Self {
+        ArrayInfoBase { dims: Vec::new() }
     }
 }
 

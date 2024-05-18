@@ -1,4 +1,5 @@
 use std::fmt::write;
+use std::mem::Discriminant;
 ///!实现生成Koopa IR
 use std::{fs::File, io::Write};
 
@@ -8,13 +9,15 @@ use crate::ast::*;
 use crate::calc_exp::Eval;
 use crate::ds_for_ir::GenerateIrInfo;
 
+use crate::array_solve::GenDefDim;
+use crate::symbol_table::ArrayInfoBase;
 use crate::symbol_table::FuncInfoBase;
 use crate::symbol_table::SymbolInfo;
+use crate::symbol_table::SymbolInfo::Array;
 use crate::symbol_table::SymbolInfo::Const;
 use crate::symbol_table::SymbolInfo::Func;
 use crate::symbol_table::SymbolInfo::Var;
 use crate::symbol_table::VarInfoBase;
-
 ///用于生成IR的trait
 pub trait GenerateIR {
     ///用于记录不同种类单元的返回情况
@@ -820,11 +823,52 @@ impl GenerateIR for ConstDecl {
 impl GenerateIR for ConstDef {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
-        match self.const_init_val.eval(info) {
-            Some(val) => {
-                info.insert_symbol(self.ident.clone(), Const(val));
+        if self.dims.is_empty() {
+            //如果dims为空，则为常量定义
+            match self.const_init_val.eval(info) {
+                Some(val) => {
+                    info.insert_symbol(self.ident.clone(), Const(val));
+                }
+                None => panic!("detected Var in ConstDef when evaluating"),
             }
-            None => panic!("detected Var in ConstDef when evaluating"),
+        } else {
+            //如果dims不为空，则为常量数组定义，数组名用@开头
+
+            //生成维度声明并加入符号表
+            self.gen_def_dim(output, info);
+            //填充初始化内容表
+
+            //为全局生成初始化内容，为局部生成初始化指令
+            match info.is_global_symbol(&self.ident) {
+                true => {
+                    //TODO: 暂时全初始化为0
+                    writeln!(output, ", zeroinit").unwrap();
+                }
+                false => {
+                    //局部变量数组初始化
+                    /*
+                    let mut total_size = 1;
+                    for dim in &real_dims {
+                        total_size *= dim;
+                    }
+                    let mut init_val = self.const_init_val.eval(info).unwrap();
+                    for i in 0..total_size {
+                        let val = init_val % 256;
+                        init_val /= 256;
+                        writeln!(
+                            output,
+                            "  store {}, @{}[{}]",
+                            val,
+                            info.get_name(&self.ident),
+                            i
+                        )
+                        .unwrap();
+                    }
+                    */
+                }
+            }
+
+            writeln!(output, "").unwrap(); //换行
         }
     }
 }
@@ -848,42 +892,52 @@ impl GenerateIR for VarDef {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
         match self {
-            VarDef::NoInit(ident) => {
-                info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                match info.is_global_symbol(ident) {
-                    true => writeln!(
-                        output,
-                        "global  @{} = alloc i32, zeroinit",
-                        info.get_name(ident)
-                    )
-                    .unwrap(),
-                    false => writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap(),
+            VarDef::NoInit(ident, dims) => {
+                if dims.is_empty() {
+                    info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
+                    match info.is_global_symbol(ident) {
+                        true => writeln!(
+                            output,
+                            "global  @{} = alloc i32, zeroinit",
+                            info.get_name(ident)
+                        )
+                        .unwrap(),
+                        false => {
+                            writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap()
+                        }
+                    }
+                } else {
+                    //TODO : 未初始化变量数组声明
                 }
             }
-            VarDef::Init(ident, init_val) => {
-                info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
-                match info.is_global_symbol(ident) {
-                    true => writeln!(
-                        output,
-                        "global  @{} = alloc i32, {}",
-                        info.get_name(ident),
-                        init_val.eval(info).unwrap()
-                    )
-                    .unwrap(),
-                    false => {
-                        writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
-
-                        init_val.generate(output, info);
-                        let init_val_id = info.now_id;
-
-                        writeln!(
+            VarDef::Init(ident, dims, init_val) => {
+                if dims.is_empty() {
+                    info.insert_symbol(ident.clone(), Var(VarInfoBase::new()));
+                    match info.is_global_symbol(ident) {
+                        true => writeln!(
                             output,
-                            "  store %{}, @{}",
-                            init_val_id,
-                            info.get_name(&ident)
+                            "global  @{} = alloc i32, {}",
+                            info.get_name(ident),
+                            init_val.eval(info).unwrap()
                         )
-                        .unwrap();
+                        .unwrap(),
+                        false => {
+                            writeln!(output, "  @{} = alloc i32", info.get_name(ident)).unwrap();
+
+                            init_val.generate(output, info);
+                            let init_val_id = info.now_id;
+
+                            writeln!(
+                                output,
+                                "  store %{}, @{}",
+                                init_val_id,
+                                info.get_name(&ident)
+                            )
+                            .unwrap();
+                        }
                     }
+                } else {
+                    //TODO : 初始化变量数组声明
                 }
             }
         }
@@ -898,6 +952,9 @@ impl GenerateIR for InitVal {
             InitVal::Exp(exp) => {
                 exp.generate(output, info);
             }
+            _ => {
+                //TODO : 数组的初始化列表
+            }
         }
     }
 }
@@ -907,36 +964,44 @@ impl GenerateIR for InitVal {
 impl GenerateIR for LVal {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
-        let eval_result = self.eval(info);
-        if eval_result.is_some() {
-            info.now_id += 1;
-            writeln!(
-                output,
-                "  %{} = add {}, 0",
-                info.now_id,
-                eval_result.unwrap()
-            )
-            .unwrap();
-            return;
-        }
-        let x = info.search_symbol(&self.ident).unwrap();
-        info.now_id += 1;
-        match x.content {
-            Var(_) => {
+        if self.dims.is_empty() {
+            //如果dims为空，则不是数组
+            let eval_result = self.eval(info);
+            if eval_result.is_some() {
+                info.now_id += 1;
                 writeln!(
                     output,
-                    "  %{} = load @{}",
+                    "  %{} = add {}, 0",
                     info.now_id,
-                    info.get_name(&self.ident)
+                    eval_result.unwrap()
                 )
                 .unwrap();
+                return;
             }
-            Const(val) => {
-                writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+            let x = info.search_symbol(&self.ident).unwrap();
+            info.now_id += 1;
+            match x.content {
+                Var(_) => {
+                    writeln!(
+                        output,
+                        "  %{} = load @{}",
+                        info.now_id,
+                        info.get_name(&self.ident)
+                    )
+                    .unwrap();
+                }
+                Const(val) => {
+                    writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
+                }
+                Func(_) => {
+                    panic!("尝试查询函数的值");
+                }
+                Array(_) => {
+                    panic!("尝试查询数组指针的值");
+                }
             }
-            Func(_) => {
-                panic!("尝试查询函数的值");
-            }
+        } else {
+            //如果dims不为空，则是数组
         }
     }
 }

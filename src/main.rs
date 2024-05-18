@@ -12,6 +12,8 @@ mod gen_asm;
 use gen_asm::GenerateAsm;
 
 #[cfg(feature = "generate-ir")]
+mod array_solve;
+#[cfg(feature = "generate-ir")]
 pub mod calc_exp;
 #[cfg(feature = "generate-ir")]
 mod gen_ir;
