@@ -849,9 +849,13 @@ impl GenerateIR for ConstDef {
                         write!(output, ", ").unwrap();
                         gen_global_array_ir(output, &real_dims, &result, 0);
                     }
+
+                    writeln!(output, "").unwrap(); //换行
                 }
                 false => {
                     //局部常量数组初始化
+                    write!(output, "\n").unwrap(); //换行
+
                     if result.len() == 0 {
                         panic!("可能由数组初值为{{}}引起");
                     } else {
@@ -866,8 +870,6 @@ impl GenerateIR for ConstDef {
                     }
                 }
             }
-
-            writeln!(output, "").unwrap(); //换行
         }
     }
 }
@@ -980,9 +982,14 @@ impl GenerateIR for VarDef {
                                 write!(output, ", ").unwrap();
                                 gen_global_array_ir(output, &real_dims, &result, 0);
                             }
+
+                            writeln!(output, "").unwrap(); //换行
                         }
                         false => {
                             //局部有初值变量数组
+
+                            write!(output, "\n").unwrap(); //换行
+
                             let mut result: Vec<i32> = vec![];
                             init_val.local_array_init(output, info, &real_dims, &mut result);
                             if result.len() == 0 {
@@ -1003,7 +1010,6 @@ impl GenerateIR for VarDef {
                     }
                 }
             }
-            writeln!(output, "").unwrap(); //换行
         }
     }
 }
