@@ -243,12 +243,19 @@ impl GenerateIR for Stmt {
                 //赋值语句
                 let exp_id = exp.generate(output, info); //计算右端exp的值
 
-                let x = info.search_symbol(&lval.ident).unwrap();
+                let lval_id = lval.generate(output, info);
 
-                match x.content {
-                    Var(_) => {
+                match lval_id {
+                    LvalResult::PointerArray(_) => {
+                        //如果是数组指针
+                        panic!("尝试向数组指针赋值");
+                    }
+                    LvalResult::Pointer(array_ptr_id) => {
+                        //如果是指针
+                        writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
+                    }
+                    LvalResult::Value(lval_id) => {
                         //如果是变量
-                        let lval_id = lval.generate(output, info);
                         writeln!(
                             output,
                             "  store %{}, @{}",
@@ -257,40 +264,6 @@ impl GenerateIR for Stmt {
                         )
                         .unwrap();
                     }
-                    Array(array_info) => {
-                        //如果是数组
-                        //先计算目标位置的地址
-                        let lval_result = lval.generate(output, info);
-
-                        match lval_result {
-                            LvalResult::PointerArray(_) => {
-                                //如果是数组指针
-                                panic!("尝试向数组指针赋值");
-                            }
-                            LvalResult::Pointer(array_ptr_id) => {
-                                //如果是指针
-                                writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
-                            }
-                            _ => panic!("数组解引用出了常数？"),
-                        }
-                    }
-                    ArrayPointer(array_info) => {
-                        //如果是数组指针
-                        let lval_result = lval.generate(output, info);
-
-                        match lval_result {
-                            LvalResult::PointerArray(_) => {
-                                //如果是数组指针
-                                panic!("尝试向数组指针赋值");
-                            }
-                            LvalResult::Pointer(array_ptr_id) => {
-                                //如果是指针
-                                writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
-                            }
-                            _ => panic!("数组指针解引用出了常数？"),
-                        }
-                    }
-                    _ => panic!("尝试对常量赋值"),
                 }
                 Returned::No
             }
@@ -552,63 +525,23 @@ impl GenerateIR for PrimaryExp {
                 info.now_id
             }
             PrimaryExp::LVal(lval) => {
-                let x = info.search_symbol(&lval.ident).unwrap();
+                let lval_result = lval.generate(output, info);
 
-                match x.content {
-                    Const(num) => {
-                        //如果是常量
+                match lval_result {
+                    LvalResult::PointerArray(array_ptr_id) => {
+                        //如果是数组指针
+                        return array_ptr_id;
+                    }
+                    LvalResult::Pointer(array_ptr_id) => {
+                        //如果是指针
                         info.now_id += 1;
-                        writeln!(output, "  %{} = add {}, 0", info.now_id, num).unwrap();
+                        writeln!(output, "  %{} = load %{}", info.now_id, array_ptr_id).unwrap();
                         return info.now_id;
                     }
-                    Var(_) => {
-                        //如果是变量
-                        if let LvalResult::Value(lval_id) = lval.generate(output, info) {
-                            info.now_id += 1; //TODO 有必要吗？？？
-                            writeln!(output, "  %{} = add %{}, 0", info.now_id, lval_id).unwrap();
-                            return info.now_id;
-                        } else {
-                            panic!("尝试使用数组作为PrimaryExp");
-                        }
+                    LvalResult::Value(lval_id) => {
+                        //如果是值
+                        return lval_id;
                     }
-                    //这俩好像可以合并 TODO
-                    Array(array_info) => {
-                        //如果是数组
-                        let lval_result = lval.generate(output, info);
-                        match lval_result {
-                            LvalResult::PointerArray(array_ptr_id) => {
-                                //如果是数组指针
-                                return array_ptr_id;
-                            }
-                            LvalResult::Pointer(array_id) => {
-                                //如果是指针
-                                info.now_id += 1;
-                                writeln!(output, "  %{} = load %{}", info.now_id, array_id)
-                                    .unwrap();
-                                return info.now_id;
-                            }
-                            _ => panic!("数组解引用出了常数？"),
-                        }
-                    }
-                    ArrayPointer(array_info) => {
-                        //如果是数组指针
-                        let lval_result = lval.generate(output, info);
-                        match lval_result {
-                            LvalResult::PointerArray(array_ptr_id) => {
-                                //如果是数组指针
-                                return array_ptr_id;
-                            }
-                            LvalResult::Pointer(array_id) => {
-                                //如果是指针
-                                info.now_id += 1;
-                                writeln!(output, "  %{} = load %{}", info.now_id, array_id)
-                                    .unwrap();
-                                return info.now_id;
-                            }
-                            _ => panic!("数组指针解引用出了常数？"),
-                        }
-                    }
-                    _ => panic!("尝试使用函数作为PrimaryExp"),
                 }
             }
         }
