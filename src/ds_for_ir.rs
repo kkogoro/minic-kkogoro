@@ -77,16 +77,19 @@ impl GenerateIrInfo {
             ),
         }
     }
-    ///得到正确**变量或函数**名
+    ///得到正确**变量、函数或数组**名
     pub fn get_name(&self, key: &str) -> String {
         match self.search_symbol(key) {
             Some(SymbolReturn { content, dep }) => match content {
                 SymbolInfo::Var(_) => match dep {
-                    //全局变量符号前面加上GLOBAL_关键字
-                    0 => "GLOBAL_".to_string() + key,
-                    //局部变量前面加上LOCAL_关键字，后面附上block_id
+                    //全局变量符号前面加上GLOBAL_VAR_"关键字
+                    0 => "GLOBAL_VAR_".to_string() + key,
+                    //局部变量前面加上LOCAL_VAR_"关键字，后面附上block_id
                     _ => {
-                        "LOCAL_".to_string() + key + "_" + &self.block_id[dep as usize].to_string()
+                        "LOCAL_VAR_".to_string()
+                            + key
+                            + "_"
+                            + &self.block_id[dep as usize].to_string()
                     }
                 },
                 //函数符号前面加上FUNC_关键字

@@ -187,17 +187,25 @@ impl GenerateIR for Stmt {
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
         match self {
             Stmt::Assign(lval, exp) => {
-                //赋值语句，LVal必须是变量
-                let exp_id = exp.generate(output, info);
+                //赋值语句
+                let exp_id = exp.generate(output, info); //计算右端exp的值
 
-                writeln!(
-                    output,
-                    "  store %{}, @{}",
-                    exp_id,
-                    info.get_name(&lval.ident)
-                )
-                .unwrap();
+                if lval.dims.is_empty() {
+                    //LVal是变量
 
+                    writeln!(
+                        output,
+                        "  store %{}, @{}",
+                        exp_id,
+                        info.get_name(&lval.ident)
+                    )
+                    .unwrap();
+                } else {
+                    //LVal是数组
+                    //先计算目标位置的地址
+                    let array_ptr_id = lval.generate(output, info);
+                    writeln!(output, "  store %{}, %{}", exp_id, array_ptr_id).unwrap();
+                }
                 Returned::No
             }
             Stmt::Exp(exp) => {
@@ -457,10 +465,17 @@ impl GenerateIR for PrimaryExp {
                 info.now_id
             }
             PrimaryExp::LVal(lval) => {
-                lval.generate(output, info);
-                let lval_id = info.now_id;
-                info.now_id += 1;
-                writeln!(output, "  %{} = add %{}, 0", info.now_id, lval_id).unwrap();
+                if lval.dims.is_empty() {
+                    //如果是变量
+                    let lval_id = lval.generate(output, info);
+                    info.now_id += 1;
+                    writeln!(output, "  %{} = add %{}, 0", info.now_id, lval_id).unwrap();
+                } else {
+                    //如果是数组
+                    let lval_id = lval.generate(output, info);
+                    info.now_id += 1;
+                    writeln!(output, "  %{} = load %{}", info.now_id, lval_id).unwrap();
+                }
                 info.now_id
             }
         }
@@ -836,6 +851,7 @@ impl GenerateIR for ConstDef {
 
             //生成维度声明并加入符号表
             self.gen_def_dim(output, info);
+
             //填充初始化内容表
 
             //为全局生成初始化内容，为局部生成初始化指令
@@ -891,36 +907,35 @@ impl GenerateIR for VarDecl {
 impl GenerateIR for VarDef {
     type GenerateResult = ();
     fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
-        match &self.init_val {
-            None => {
-                //没有初值
-                if self.dims.is_empty() {
-                    //纯变量，非数组
-                    info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
-                    match info.is_global_symbol(&self.ident) {
-                        true => writeln!(
-                            output,
-                            "global  @{} = alloc i32, zeroinit",
-                            info.get_name(&self.ident)
-                        )
-                        .unwrap(),
-                        false => writeln!(output, "  @{} = alloc i32", info.get_name(&self.ident))
+        if self.dims.is_empty() {
+            //如果是变量
+            match &self.init_val {
+                None => {
+                    //没有初值
+                    if self.dims.is_empty() {
+                        //纯变量，非数组
+                        info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
+                        match info.is_global_symbol(&self.ident) {
+                            true => writeln!(
+                                output,
+                                "global @{} = alloc i32, zeroinit",
+                                info.get_name(&self.ident)
+                            )
                             .unwrap(),
+                            false => {
+                                writeln!(output, "  @{} = alloc i32", info.get_name(&self.ident))
+                                    .unwrap()
+                            }
+                        }
                     }
-                } else {
-                    //TODO : 未初始化变量数组声明
-                    //生成维度声明并加入符号表
-                    self.gen_def_dim(output, info);
                 }
-            }
-            Some(init_val) => {
-                if self.dims.is_empty() {
+                Some(init_val) => {
                     //纯变量，非数组
                     info.insert_symbol(self.ident.clone(), Var(VarInfoBase::new()));
                     match info.is_global_symbol(&self.ident) {
                         true => writeln!(
                             output,
-                            "global  @{} = alloc i32, {}",
+                            "global @{} = alloc i32, {}",
                             info.get_name(&self.ident),
                             init_val.eval(info).unwrap()
                         )
@@ -941,12 +956,34 @@ impl GenerateIR for VarDef {
                             .unwrap();
                         }
                     }
-                } else {
-                    //TODO : 初始化变量数组声明
-                    //生成维度声明并加入符号表
-                    self.gen_def_dim(output, info);
                 }
             }
+        } else {
+            //数组
+
+            //生成维度声明并加入符号表
+            self.gen_def_dim(output, info);
+            match &self.init_val {
+                None => {
+                    //没有初值
+                    //TODO : 未初始化变量数组声明
+
+                    //为全局生成初始化内容，为局部生成初始化指令
+                    match info.is_global_symbol(&self.ident) {
+                        true => {
+                            //TODO: 暂时全初始化为0
+                            writeln!(output, ", zeroinit").unwrap();
+                        }
+                        false => {
+                            //局部变量数组初始化
+                        }
+                    }
+                }
+                Some(init_val) => {
+                    //TODO : 初始化变量数组
+                }
+            }
+            writeln!(output, "").unwrap(); //换行
         }
     }
 }
@@ -967,10 +1004,11 @@ impl GenerateIR for InitVal {
 }
 
 ///为LVal实现GenerateIR trait
-///作用是取出LVal对应的变量的值，存入info.now_id + 1中
+///作用是取出LVal对应的变量的值，存入返回值中
+///或者是将数组对应位置的指针值放在返回值中
 impl GenerateIR for LVal {
-    type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    type GenerateResult = i32;
+    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
         if self.dims.is_empty() {
             //如果dims为空，则不是数组
             let eval_result = self.eval(info);
@@ -983,8 +1021,9 @@ impl GenerateIR for LVal {
                     eval_result.unwrap()
                 )
                 .unwrap();
-                return;
-            }
+                return info.now_id;
+            } //如果可以编译期间计算，直接返回计算结果
+
             let x = info.search_symbol(&self.ident).unwrap();
             info.now_id += 1;
             match x.content {
@@ -996,19 +1035,35 @@ impl GenerateIR for LVal {
                         info.get_name(&self.ident)
                     )
                     .unwrap();
+                    info.now_id
                 }
                 Const(val) => {
                     writeln!(output, "  %{} = add {}, 0", info.now_id, val).unwrap();
-                }
-                Func(_) => {
-                    panic!("尝试查询函数的值");
+                    info.now_id
                 }
                 Array(_) => {
                     panic!("尝试查询数组指针的值");
                 }
+                Func(_) => {
+                    panic!("尝试查询函数的值");
+                }
             }
         } else {
             //如果dims不为空，则是数组
+            //将数组的指针存入返回值中
+            let mut last_base_string = "@".to_string() + &info.get_name(&self.ident);
+            for dim in &self.dims {
+                let dim_id = dim.generate(output, info);
+                info.now_id += 1;
+                writeln!(
+                    output,
+                    "  %{} = getelemptr {}, %{}",
+                    info.now_id, last_base_string, dim_id
+                )
+                .unwrap();
+                last_base_string = "%".to_owned() + info.now_id.to_string().as_str();
+            }
+            info.now_id
         }
     }
 }

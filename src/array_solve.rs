@@ -7,7 +7,9 @@ use crate::symbol_table::ArrayInfoBase;
 use crate::symbol_table::SymbolInfo::Array;
 use std::{fs::File, io::Write};
 
+///数组定义处理接口
 pub trait GenDefDim {
+    ///生成数组维度声明
     fn gen_def_dim(&self, output: &mut File, info: &mut GenerateIrInfo);
 }
 
