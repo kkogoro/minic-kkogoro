@@ -10,6 +10,7 @@ use crate::calc_exp::Eval;
 use crate::ds_for_ir::GenerateIrInfo;
 
 use crate::array_solve::GenDefDim;
+use crate::array_solve::GlobalArrayInit;
 use crate::symbol_table::ArrayInfoBase;
 use crate::symbol_table::FuncInfoBase;
 use crate::symbol_table::SymbolInfo;
@@ -850,15 +851,33 @@ impl GenerateIR for ConstDef {
             //如果dims不为空，则为常量数组定义，数组名用@开头
 
             //生成维度声明并加入符号表
-            self.gen_def_dim(output, info);
+            let real_dims = self.gen_def_dim(output, info);
 
             //填充初始化内容表
+            let mut result: Vec<i32> = vec![];
+            self.const_init_val
+                .gen_array_init(output, info, &real_dims, &mut result);
 
             //为全局生成初始化内容，为局部生成初始化指令
             match info.is_global_symbol(&self.ident) {
                 true => {
-                    //TODO: 暂时全初始化为0
-                    writeln!(output, ", zeroinit").unwrap();
+                    if result.len() == 0 {
+                        //初始值是{}，初始化为0
+                        writeln!(output, ", zeroinit").unwrap();
+                    } else {
+                        write!(output, ", ").unwrap();
+                        gen_global_array_ir(output, &real_dims, &result, 0);
+                        /*
+                        write!(output, ", {{").unwrap();
+                        for (i, val) in result.iter().enumerate() {
+                            if i != 0 {
+                                write!(output, ", ").unwrap();
+                            }
+                            write!(output, "{}", val).unwrap();
+                        }
+                        write!(output, "}}").unwrap();
+                        */
+                    }
                 }
                 false => {
                     //局部变量数组初始化
@@ -962,25 +981,40 @@ impl GenerateIR for VarDef {
             //数组
 
             //生成维度声明并加入符号表
-            self.gen_def_dim(output, info);
+            let real_dims = self.gen_def_dim(output, info);
+
             match &self.init_val {
                 None => {
                     //没有初值
                     //TODO : 未初始化变量数组声明
-
-                    //为全局生成初始化内容，为局部生成初始化指令
                     match info.is_global_symbol(&self.ident) {
                         true => {
-                            //TODO: 暂时全初始化为0
+                            //全局未初始化自动初始化为0
                             writeln!(output, ", zeroinit").unwrap();
                         }
                         false => {
-                            //局部变量数组初始化
+                            //局部变量数组未初始化不用管（？） TODO
                         }
                     }
                 }
                 Some(init_val) => {
-                    //TODO : 初始化变量数组
+                    //有初值的变量数组初始化
+                    let mut result: Vec<i32> = vec![];
+                    init_val.gen_array_init(output, info, &real_dims, &mut result);
+                    match info.is_global_symbol(&self.ident) {
+                        true => {
+                            //全局有初值变量数组
+                            if result.len() == 0 {
+                                //初始值是{}，初始化为0
+                                writeln!(output, ", zeroinit").unwrap();
+                            } else {
+                                write!(output, ", ").unwrap();
+                                gen_global_array_ir(output, &real_dims, &result, 0);
+                            }
+                        }
+                        false => { //局部有初值变量数组 TODO
+                        }
+                    }
                 }
             }
             writeln!(output, "").unwrap(); //换行
@@ -1065,5 +1099,29 @@ impl GenerateIR for LVal {
             }
             info.now_id
         }
+    }
+}
+
+fn gen_global_array_ir(output: &mut File, dims: &[i32], result: &Vec<i32>, now_pos: i32) {
+    if dims.is_empty() {
+        //到达叶子
+        write!(output, "{}", result[now_pos as usize]).unwrap();
+    } else {
+        //未到达叶子
+        //计算增量，是dims[1..]的乘积
+        let mut delta: i32 = 1;
+        for dim in &dims[1..] {
+            delta *= dim;
+        }
+        write!(output, "{{").unwrap();
+
+        for i in 0..dims[0] {
+            if i != 0 {
+                write!(output, ", ").unwrap();
+            }
+            gen_global_array_ir(output, &dims[1..], result, now_pos + delta * i);
+        }
+
+        write!(output, "}}").unwrap();
     }
 }
