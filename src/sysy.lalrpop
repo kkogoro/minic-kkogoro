@@ -35,9 +35,9 @@ FuncDef: FuncDef = {
 };
 
 
-//FuncFParam  ::= BType IDENT;
+//FuncFParam ::= BType IDENT ["[" "]" {"[" ConstExp "]"}];
 FuncFParam: FuncFParam = {
-  "int" <ident: Ident> => FuncFParam{btype: BType::Int, <>},
+  "int" <ident: Ident> <dims : ("[" "]" <("[" <ConstExp> "]")*>)?> => FuncFParam{btype: BType::Int, <>},
 };
 
 

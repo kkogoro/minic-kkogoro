@@ -13,7 +13,7 @@ lalrpop-util = { version = "0.20.2", features = ["lexer"] }
 
 [features]
 # 想启用的debug feature加到这里
-default = ["generate-ir"]
+default = []
 # default = ["debug"] 
 
 #打印AST

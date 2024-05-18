@@ -26,10 +26,11 @@ pub struct FuncDef {
 }
 
 #[derive(Debug)]
-///FuncFParam  ::= BType IDENT;
+///FuncFParam ::= BType IDENT ["[" "]" {"[" ConstExp "]"}];
 pub struct FuncFParam {
     pub btype: BType,
     pub ident: String,
+    pub dims: Option<Vec<ConstExp>>,
 }
 
 #[derive(Debug, Copy, Clone)]
