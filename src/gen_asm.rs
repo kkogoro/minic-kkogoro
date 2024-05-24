@@ -140,6 +140,34 @@ impl GenerateAsm for koopa::ir::FunctionData {
                                 writeln!(output, "  sra {}, {}, {}", reg_ret, reg_l, reg_r)
                                     .unwrap();
                             }
+                            BinaryOp::Eq => {
+                                writeln!(output, "  xor {}, {}, {}", reg_ret, reg_l, reg_r)
+                                    .unwrap();
+                                writeln!(output, "  seqz {}, {}", reg_ret, reg_ret).unwrap();
+                            }
+                            BinaryOp::NotEq => {
+                                writeln!(output, "  xor {}, {}, {}", reg_ret, reg_l, reg_r)
+                                    .unwrap();
+                                writeln!(output, "  snez {}, {}", reg_ret, reg_ret).unwrap();
+                            }
+                            BinaryOp::Lt => {
+                                writeln!(output, "  slt {}, {}, {}", reg_ret, reg_l, reg_r)
+                                    .unwrap();
+                            }
+                            BinaryOp::Gt => {
+                                writeln!(output, "  sgt {}, {}, {}", reg_ret, reg_l, reg_r)
+                                    .unwrap();
+                            }
+                            BinaryOp::Le => {
+                                writeln!(output, "  sgt {}, {}, {}", reg_ret, reg_l, reg_r)
+                                    .unwrap();
+                                writeln!(output, "  seqz {}, {}", reg_ret, reg_ret).unwrap();
+                            }
+                            BinaryOp::Ge => {
+                                writeln!(output, "  slt {}, {}, {}", reg_ret, reg_l, reg_r)
+                                    .unwrap();
+                                writeln!(output, "  seqz {}, {}", reg_ret, reg_ret).unwrap();
+                            }
                             _ => {}
                         }
                     }
