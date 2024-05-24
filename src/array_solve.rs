@@ -10,11 +10,11 @@ use std::{fs::File, io::Write};
 ///数组定义处理接口
 pub trait GenDefDim {
     ///生成数组维度声明
-    fn gen_def_dim(&self, output: &mut File, info: &mut GenerateIrInfo) -> Vec<i32>;
+    fn gen_def_dim(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Vec<i32>;
 }
 
 impl GenDefDim for ConstDef {
-    fn gen_def_dim(&self, output: &mut File, info: &mut GenerateIrInfo) -> Vec<i32> {
+    fn gen_def_dim(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Vec<i32> {
         //遍历dims，计算数组维度大小
         let mut real_dims: Vec<i32> = vec![];
         for dim in &self.dims {
@@ -42,7 +42,7 @@ impl GenDefDim for ConstDef {
 }
 
 impl GenDefDim for VarDef {
-    fn gen_def_dim(&self, output: &mut File, info: &mut GenerateIrInfo) -> Vec<i32> {
+    fn gen_def_dim(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Vec<i32> {
         //遍历dims，计算数组维度大小
         let mut real_dims: Vec<i32> = vec![];
         for dim in &self.dims {
@@ -73,7 +73,7 @@ impl GenDefDim for VarDef {
 pub trait GlobalArrayInit {
     fn global_array_init(
         &self,
-        output: &mut File,
+        output: &mut dyn Write,
         info: &mut GenerateIrInfo,
         dims: &[i32],
         result: &mut Vec<i32>,
@@ -83,7 +83,7 @@ pub trait GlobalArrayInit {
 impl GlobalArrayInit for ConstInitVal {
     fn global_array_init(
         &self,
-        output: &mut File,
+        output: &mut dyn Write,
         info: &mut GenerateIrInfo,
         dims: &[i32],
         result: &mut Vec<i32>,
@@ -135,7 +135,7 @@ impl GlobalArrayInit for ConstInitVal {
 impl GlobalArrayInit for InitVal {
     fn global_array_init(
         &self,
-        output: &mut File,
+        output: &mut dyn Write,
         info: &mut GenerateIrInfo,
         dims: &[i32],
         result: &mut Vec<i32>,
@@ -188,7 +188,7 @@ impl GlobalArrayInit for InitVal {
 pub trait LocalArrayInit {
     fn local_array_init(
         &self,
-        output: &mut File,
+        output: &mut dyn Write,
         info: &mut GenerateIrInfo,
         dims: &[i32],
         result: &mut Vec<i32>,
@@ -201,7 +201,7 @@ pub trait LocalArrayInit {
 impl LocalArrayInit for InitVal {
     fn local_array_init(
         &self,
-        output: &mut File,
+        output: &mut dyn Write,
         info: &mut GenerateIrInfo,
         dims: &[i32],
         result: &mut Vec<i32>,

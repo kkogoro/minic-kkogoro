@@ -6,6 +6,7 @@ pub mod ast;
 pub mod ds_for_ir;
 pub mod symbol_table;
 
+mod ds_for_asm;
 #[cfg(feature = "generate-asm")]
 mod gen_asm;
 #[cfg(feature = "generate-asm")]
@@ -25,6 +26,7 @@ use std::env::args;
 use std::fs::read_to_string;
 use std::fs::File;
 use std::io::Result;
+use std::io::Write;
 
 // 引用 lalrpop 生成的解析器
 // 因为我们刚刚创建了 sysy.lalrpop, 所以模块名是 sysy
@@ -65,6 +67,11 @@ fn main() -> Result<()> {
         "-riscv" => {
             #[cfg(feature = "generate-asm")]
             {
+                let mut info = ds_for_ir::GenerateIrInfo::new();
+                let mut tmp_ir = Vec::new();
+                ast.generate(&mut tmp_ir, &mut info);
+                let my_koppa_ir = String::from_utf8(tmp_ir).unwrap();
+                println!("{}", my_koppa_ir);
                 let driver = koopa::front::Driver::from(my_koppa_ir);
                 let program = driver.generate_program().unwrap();
                 program.generate(&mut output_file);

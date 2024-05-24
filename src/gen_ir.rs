@@ -26,7 +26,7 @@ use crate::symbol_table::VarInfoBase;
 pub trait GenerateIR {
     ///用于记录不同种类单元的返回情况
     type GenerateResult;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Self::GenerateResult;
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Self::GenerateResult;
 }
 
 ///用于记录子树中是否已经return/jump/br
@@ -38,7 +38,7 @@ pub enum Returned {
 ///为CompUnit实现 GenerateIR trait
 impl GenerateIR for CompUnit {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         symbol_table_debug!(
             "程序开始,符号表和block表分别为{:#?}\n{:#?}",
             info.tables,
@@ -88,7 +88,7 @@ impl GenerateIR for CompUnit {
 ///为CompItem实现GenerateIR trait
 impl GenerateIR for CompItem {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         match self {
             CompItem::FuncDef(func_def) => {
                 func_def.generate(output, info);
@@ -103,7 +103,7 @@ impl GenerateIR for CompItem {
 ///为FuncDef实现GenerateIR trait
 impl GenerateIR for FuncDef {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         //每个函数层都是一个新的作用域层，具体来说是 {func {block} }
         //这样我们可以保证形参的作用域大于block中的任何变量
         info.push_block();
@@ -205,7 +205,7 @@ impl GenerateIR for FuncDef {
 ///为Block实现GenerateIR trait
 impl GenerateIR for Block {
     type GenerateResult = Returned;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Returned {
         //目前现在block的GenerateIR trait调用新建block
         //注意只有FuncDef和Stmt会推导出Block
         info.push_block();
@@ -226,7 +226,7 @@ impl GenerateIR for Block {
 ///为BlockItem实现GenerateIR trait
 impl GenerateIR for BlockItem {
     type GenerateResult = Returned;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Returned {
         match self {
             BlockItem::Decl(decl) => decl.generate(output, info),
             BlockItem::Stmt(stmt) => stmt.generate(output, info),
@@ -237,7 +237,7 @@ impl GenerateIR for BlockItem {
 ///为Stmt实现GenerateIR trait
 impl GenerateIR for Stmt {
     type GenerateResult = Returned;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Returned {
         match self {
             Stmt::Assign(lval, exp) => {
                 //赋值语句
@@ -408,7 +408,7 @@ impl GenerateIR for Stmt {
 ///为Exp实现GenerateIR trait
 impl GenerateIR for Exp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -430,7 +430,7 @@ impl GenerateIR for Exp {
 ///为UnaryExp实现GenerateIR trait
 impl GenerateIR for UnaryExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -503,7 +503,7 @@ impl GenerateIR for UnaryExp {
 ///为PrimaryExp实现GenerateIR trait
 impl GenerateIR for PrimaryExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -551,7 +551,7 @@ impl GenerateIR for PrimaryExp {
 ///为AddExp实现GenerateIR trait
 impl GenerateIR for AddExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -585,7 +585,7 @@ impl GenerateIR for AddExp {
 ///为MulExp实现GenerateIR trait
 impl GenerateIR for MulExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -620,7 +620,7 @@ impl GenerateIR for MulExp {
 ///为RelExp实现GenerateIR trait
 impl GenerateIR for RelExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -656,7 +656,7 @@ impl GenerateIR for RelExp {
 ///为EqExp实现GenerateIR trait
 impl GenerateIR for EqExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -691,7 +691,7 @@ impl GenerateIR for EqExp {
 ///注意应该是实现逻辑and，Koopa IR中的是按位and
 impl GenerateIR for LAndExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -760,7 +760,7 @@ impl GenerateIR for LAndExp {
 ///为LOrExp实现GenerateIR trait
 impl GenerateIR for LOrExp {
     type GenerateResult = i32;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> i32 {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> i32 {
         let eval_result = self.eval(info);
         if eval_result.is_some() {
             info.now_id += 1;
@@ -842,7 +842,7 @@ impl GenerateIR for LOrExp {
 ///为Decl实现GenerateIR trait
 impl GenerateIR for Decl {
     type GenerateResult = Returned;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> Returned {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> Returned {
         match self {
             Decl::ConstDecl(const_decl) => const_decl.generate(output, info),
             Decl::VarDecl(var_decl) => var_decl.generate(output, info),
@@ -854,7 +854,7 @@ impl GenerateIR for Decl {
 ///为ConstDecl实现GenerateIR trait
 impl GenerateIR for ConstDecl {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         match self {
             ConstDecl::ConstDeclS(btype, const_def_s) => {
                 for const_def in const_def_s {
@@ -868,7 +868,7 @@ impl GenerateIR for ConstDecl {
 ///为ConstDef实现GenerateIR trait
 impl GenerateIR for ConstDef {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         if self.dims.is_empty() {
             //如果dims为空，则为常量定义
             match self.const_init_val.eval(info) {
@@ -925,7 +925,7 @@ impl GenerateIR for ConstDef {
 ///为VarDecl实现GenerateIR trait
 impl GenerateIR for VarDecl {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         match self {
             VarDecl::VarDeclS(btype, var_def_s) => {
                 for var_def in var_def_s {
@@ -939,7 +939,7 @@ impl GenerateIR for VarDecl {
 ///为VarDef实现GenerateIR trait
 impl GenerateIR for VarDef {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         if self.dims.is_empty() {
             //如果是变量
             match &self.init_val {
@@ -1064,7 +1064,7 @@ impl GenerateIR for VarDef {
 ///为InitVal实现GenerateIR trait
 impl GenerateIR for InitVal {
     type GenerateResult = ();
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) {
         match self {
             InitVal::Exp(exp) => {
                 exp.generate(output, info);
@@ -1084,7 +1084,7 @@ pub enum LvalResult {
 }
 impl GenerateIR for LVal {
     type GenerateResult = LvalResult;
-    fn generate(&self, output: &mut File, info: &mut GenerateIrInfo) -> LvalResult {
+    fn generate(&self, output: &mut dyn Write, info: &mut GenerateIrInfo) -> LvalResult {
         let x = info.search_symbol(&self.ident).unwrap();
         match x.content {
             Var(_) => {
@@ -1215,7 +1215,7 @@ impl GenerateIR for LVal {
 }
 
 ///为全局数组生成代码
-fn gen_global_array_ir(output: &mut File, dims: &[i32], result: &Vec<i32>, now_pos: i32) {
+fn gen_global_array_ir(output: &mut dyn Write, dims: &[i32], result: &Vec<i32>, now_pos: i32) {
     if dims.is_empty() {
         //到达叶子
         write!(output, "{}", result[now_pos as usize]).unwrap();
@@ -1241,7 +1241,7 @@ fn gen_global_array_ir(output: &mut File, dims: &[i32], result: &Vec<i32>, now_p
 
 ///为局部变量数组生成代码
 fn gen_local_var_array_ir(
-    output: &mut File,
+    output: &mut dyn Write,
     info: &mut GenerateIrInfo,
     dims: &[i32],
     result: &Vec<i32>,
@@ -1280,7 +1280,7 @@ fn gen_local_var_array_ir(
 
 ///为局部常量数组生成代码
 fn gen_local_const_array_ir(
-    output: &mut File,
+    output: &mut dyn Write,
     info: &mut GenerateIrInfo,
     dims: &[i32],
     result: &Vec<i32>,
