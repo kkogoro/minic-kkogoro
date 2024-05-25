@@ -128,6 +128,7 @@ impl GenerateAsmInfo {
         //为全局变量则返回全局变量地址
         if value.is_global() {
             let reg = self.new_tmp_reg(UserKind::Val(value));
+
             writeln!(
                 output,
                 "  la {}, {}",

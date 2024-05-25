@@ -19,6 +19,11 @@ fn get_reg(
     value: Value,
     program_info: &Program,
 ) -> String {
+    if value.is_global() {
+        //全局变量直接去找get_reg
+        return func_info.get_reg(output, value, program_info);
+    }
+
     let val_data = func_data.dfg().value(value);
     match val_data.kind() {
         ValueKind::Integer(val) => {
@@ -61,17 +66,6 @@ fn store_by_offset(output: &mut File, func_info: &mut GenerateAsmInfo, reg: &str
         let reg_addr = func_info.get_reg_i32(output, offset);
         writeln!(output, "  add {}, sp, {}", reg_addr, reg_addr).unwrap();
         writeln!(output, "  sw {}, 0({})", reg, reg_addr).unwrap();
-        func_info.free_reg(UserKind::Tmpi32(offset));
-    }
-}
-
-fn load_by_offset(output: &mut File, func_info: &mut GenerateAsmInfo, reg: &str, offset: i32) {
-    if check_i12(offset) {
-        writeln!(output, "  lw {}, {}(sp)", reg, offset).unwrap();
-    } else {
-        let reg_addr = func_info.get_reg_i32(output, offset);
-        writeln!(output, "  add {}, sp, {}", reg_addr, reg_addr).unwrap();
-        writeln!(output, "  lw {}, 0({})", reg, reg_addr).unwrap();
         func_info.free_reg(UserKind::Tmpi32(offset));
     }
 }
@@ -241,37 +235,78 @@ impl GenerateAsm for koopa::ir::FunctionData {
             // 遍历指令列表
             for &inst in node.insts().keys() {
                 let value_data = self.dfg().value(inst);
+
                 // 访问指令
                 match value_data.kind() {
                     ValueKind::GetElemPtr(getelmprt_inst) => {
                         let index = getelmprt_inst.index();
                         let src_value = getelmprt_inst.src();
-                        let src_type = self.dfg().value(src_value).ty();
+                        //TODO:合并
+                        if src_value.is_global() {
+                            let src_size = match program_info.borrow_value(src_value).ty().kind() {
+                                TypeKind::Pointer(base) => match base.kind() {
+                                    TypeKind::Array(_, len) => base.size() / len,
+                                    _ => unreachable!(),
+                                },
+                                _ => unreachable!(),
+                            };
+                            //偏移量
+                            let reg_index =
+                                get_reg(output, self, &mut func_info, index, program_info);
+                            let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
 
-                        //偏移量
-                        let reg_index = get_reg(output, self, &mut func_info, index, program_info);
-                        let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
+                            let reg_size = func_info.get_reg_i32(output, src_size as i32);
 
-                        //对应数组类型大小
-                        let src_size = src_type.size();
-                        let reg_size = func_info.get_reg_i32(output, src_size as i32);
+                            //把index乘以src_size存在reg_ret，因为另外两个都有可能是x0
+                            writeln!(output, "  mul {}, {}, {}", reg_ret, reg_index, reg_size)
+                                .unwrap();
+                            func_info.free_reg(UserKind::Tmpi32(src_size as i32));
+                            free_reg(self, &mut func_info, index);
 
-                        //把index乘以src_size存在reg_ret，因为另外两个都有可能是x0
-                        writeln!(output, "  mul {}, {}, {}", reg_ret, reg_index, reg_size).unwrap();
-                        func_info.free_reg(UserKind::Tmpi32(src_size as i32));
-                        free_reg(self, &mut func_info, index);
+                            //基地址
+                            let reg_src =
+                                get_reg(output, self, &mut func_info, src_value, program_info);
 
-                        //基地址
-                        let reg_src =
-                            get_reg(output, self, &mut func_info, src_value, program_info);
+                            writeln!(output, "  add {}, {}, {}", reg_ret, reg_src, reg_ret)
+                                .unwrap();
 
-                        writeln!(output, "  add {}, {}, {}", reg_ret, reg_src, reg_ret).unwrap();
+                            free_reg(self, &mut func_info, src_value);
 
-                        free_reg(self, &mut func_info, src_value);
+                            func_info.new_var(output, inst, now_stack_offset, program_info);
+                            now_stack_offset += value_data.ty().size() as i32;
+                            free_reg(self, &mut func_info, inst);
+                        } else {
+                            //偏移量
+                            let reg_index =
+                                get_reg(output, self, &mut func_info, index, program_info);
+                            let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
 
-                        func_info.new_var(output, inst, now_stack_offset, program_info);
-                        now_stack_offset += value_data.ty().size() as i32;
-                        free_reg(self, &mut func_info, inst);
+                            //对应数组类型大小
+                            let src_size = match value_data.ty().kind() {
+                                TypeKind::Pointer(base) => base.size(),
+                                _ => unreachable!(),
+                            };
+                            let reg_size = func_info.get_reg_i32(output, src_size as i32);
+
+                            //把index乘以src_size存在reg_ret，因为另外两个都有可能是x0
+                            writeln!(output, "  mul {}, {}, {}", reg_ret, reg_index, reg_size)
+                                .unwrap();
+                            func_info.free_reg(UserKind::Tmpi32(src_size as i32));
+                            free_reg(self, &mut func_info, index);
+
+                            //基地址
+                            let reg_src =
+                                get_reg(output, self, &mut func_info, src_value, program_info);
+
+                            writeln!(output, "  add {}, {}, {}", reg_ret, reg_src, reg_ret)
+                                .unwrap();
+
+                            free_reg(self, &mut func_info, src_value);
+
+                            func_info.new_var(output, inst, now_stack_offset, program_info);
+                            now_stack_offset += value_data.ty().size() as i32;
+                            free_reg(self, &mut func_info, inst);
+                        }
                     }
 
                     ValueKind::Alloc(_) => {
