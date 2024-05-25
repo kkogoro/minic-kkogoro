@@ -473,7 +473,15 @@ impl GenerateAsm for koopa::ir::FunctionData {
                         let false_bb_name =
                             self.dfg().bb(br_inst.false_bb()).name().clone().unwrap();
                         let reg_cond = get_reg(output, self, &mut func_info, cond, program_info);
-                        writeln!(output, "  bnez {}, {}", reg_cond, &true_bb_name[1..]).unwrap();
+                        writeln!(
+                            output,
+                            "  beqz {}, BRTEMP_{}",
+                            reg_cond,
+                            &false_bb_name[1..]
+                        )
+                        .unwrap();
+                        writeln!(output, "  j {}", &true_bb_name[1..]).unwrap();
+                        writeln!(output, "BRTEMP_{}:", &false_bb_name[1..]).unwrap();
                         writeln!(output, "  j {}", &false_bb_name[1..]).unwrap();
                         free_reg(self, &mut func_info, cond);
                     }
