@@ -72,7 +72,18 @@ fn main() -> Result<()> {
                 let mut tmp_ir = Vec::new();
                 ast.generate(&mut tmp_ir, &mut info);
                 let my_koppa_ir = String::from_utf8(tmp_ir).unwrap();
-                println!("{}", my_koppa_ir);
+                let driver = koopa::front::Driver::from(my_koppa_ir);
+                let program = driver.generate_program().unwrap();
+                program.generate(&mut output_file, &program);
+            }
+        }
+        "-perf" => {
+            #[cfg(feature = "generate-asm")]
+            {
+                let mut info = ds_for_ir::GenerateIrInfo::new();
+                let mut tmp_ir = Vec::new();
+                ast.generate(&mut tmp_ir, &mut info);
+                let my_koppa_ir = String::from_utf8(tmp_ir).unwrap();
                 let driver = koopa::front::Driver::from(my_koppa_ir);
                 let program = driver.generate_program().unwrap();
                 program.generate(&mut output_file, &program);
