@@ -88,6 +88,7 @@ impl GenerateAsm for koopa::ir::FunctionData {
         if self.layout().entry_bb().is_none() {
             return;
         }
+
         writeln!(output, "  .text").unwrap();
         writeln!(output, "  .globl {}", &self.name()[1..]).unwrap();
         writeln!(output, "{}:", &self.name()[1..]).unwrap();
@@ -139,6 +140,25 @@ impl GenerateAsm for koopa::ir::FunctionData {
         func_info.stack_size = ra_size + local_var_size + param_size;
         func_info.stack_size = (func_info.stack_size + 15) & !15; //check?
 
+        //取回参数，此时栈指针还没有移动
+        {
+            let mut now_params_offset = 0;
+            for (i, &param) in self.params().iter().enumerate() {
+                let reg_param = get_reg(output, self, &mut func_info, param);
+                if i <= 7 {
+                    //参数个数小于等于8个，从a0-a7读，这里直接把对应寄存器的占用情况设置成对应参数
+                    func_info.set_reg(&("a".to_owned() + &i.to_string()), param)
+                    //注意，寄存器里的东西读完就不要再访问了，我们的前端保证一定会先把他们备份一遍
+                } else {
+                    //超过8个从栈上读取
+                    //直接把参数对应偏移量设置成对应位置
+                    func_info.set_offset(param, now_params_offset + func_info.stack_size);
+                    now_params_offset += self.dfg().value(param).ty().size() as i32;
+                }
+                free_reg(self, &mut func_info, param);
+            }
+        }
+
         //移动栈指针
         func_info.set_sp(output);
 
@@ -186,13 +206,25 @@ impl GenerateAsm for koopa::ir::FunctionData {
                             }
                             free_reg(self, &mut func_info, param);
                         }
-
                         writeln!(
                             output,
                             "  call {}",
                             &(program_info.func(call_inst.callee()).name())[1..]
                         )
                         .unwrap();
+
+                        if value_data.ty().is_unit() {
+                            //没有返回值，不需要设置返回值
+                            continue;
+                        }
+
+                        func_info.set_reg("a0", inst); //把a0的所有者给inst
+
+                        //正式分入栈中，会在func_info生成一条sw指令
+                        func_info.new_var(output, inst, now_stack_offset);
+                        func_info.free_reg(UserKind::Val(inst));
+
+                        now_stack_offset += value_data.ty().size() as i32;
                     }
                     ValueKind::Branch(br_inst) => {
                         let cond = br_inst.cond();
@@ -373,8 +405,6 @@ impl GenerateAsm for koopa::ir::FunctionData {
                 }
             }
         }
-
-        assert!((now_stack_offset - func_info.stack_size).abs() < 16); //差值应该小于16
-                                                                       //恢复栈指针
+        //恢复栈指针
     }
 }

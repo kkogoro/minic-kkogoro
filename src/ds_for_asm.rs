@@ -111,6 +111,15 @@ impl GenerateAsmInfo {
         writeln!(output, "  li {}, {}", reg, inum).unwrap();
         reg
     }
+    //直接把对应寄存器的所有者设置为param，对应传参和返回值
+    pub fn set_reg(&mut self, reg: &str, param: Value) {
+        for (i, user) in self.reg_user.iter_mut().enumerate() {
+            if TMP_REG[i] == reg {
+                *user = Some(UserKind::Val(param));
+                return;
+            }
+        }
+    }
     // 获取value对应的寄存器
     pub fn get_reg(&mut self, output: &mut File, value: Value) -> String {
         //查询是否已经有reg
