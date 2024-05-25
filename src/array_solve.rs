@@ -198,18 +198,18 @@ pub trait LocalArrayInit {
 //CosntInitVal的LocalArrayInit和GlobalArrayInit一样，因此不再实现
 
 ///生成变量数组初值
-impl LocalArrayInit for InitVal {
-    fn local_array_init(
+impl InitVal {
+    pub fn local_array_init(
         &self,
         output: &mut dyn Write,
         info: &mut GenerateIrInfo,
         dims: &[i32],
-        result: &mut Vec<i32>,
+        result: &mut Vec<String>,
     ) {
         match self {
             InitVal::Exp(exp) => {
                 let val_id = exp.generate(output, info);
-                result.push(val_id);
+                result.push(val_id.unwrap());
             }
             InitVal::InitValS(vals) => {
                 let pre_filled = result.len();
@@ -243,7 +243,7 @@ impl LocalArrayInit for InitVal {
                 let fin_filled = result.len();
                 let required_size = dims.iter().fold(1, |acc, x| acc * x) as usize;
                 for _ in (fin_filled - pre_filled)..required_size {
-                    result.push(0);
+                    result.push(0.to_string());
                 }
             }
         }
