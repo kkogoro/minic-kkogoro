@@ -1,5 +1,6 @@
 use core::panic;
 use koopa::ir::entities::ValueData;
+use koopa::ir::Program;
 use koopa::ir::Value;
 use std::collections::HashMap;
 use std::fs::File;
@@ -16,7 +17,7 @@ pub fn check_i12(val: i32) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UserKind {
-    Val(Value),
+    Val(Value), //用不用区分Global?
     Tmpi32(i32),
 }
 
@@ -44,9 +45,15 @@ impl GenerateAsmInfo {
         self.set_offset(value, offset);
     }
     ///在栈上分配变量，并且将inst的运算结果存到栈上
-    pub fn new_var(&mut self, output: &mut File, value: Value, offset: i32) {
+    pub fn new_var(
+        &mut self,
+        output: &mut File,
+        value: Value,
+        offset: i32,
+        program_info: &Program,
+    ) {
         self.set_offset(value, offset);
-        let reg = self.get_reg(output, value);
+        let reg = self.get_reg(output, value, program_info);
         if check_i12(offset) {
             writeln!(output, "  sw {}, {}(sp)", reg, offset).unwrap();
         } else {
@@ -120,8 +127,21 @@ impl GenerateAsmInfo {
             }
         }
     }
-    // 获取value对应的寄存器
-    pub fn get_reg(&mut self, output: &mut File, value: Value) -> String {
+    // 获取value对应的寄存器，若为全局变量则返回全局变量地址
+    pub fn get_reg(&mut self, output: &mut File, value: Value, program_info: &Program) -> String {
+        //为全局变量则返回全局变量地址
+        if value.is_global() {
+            let reg = self.new_tmp_reg(UserKind::Val(value));
+            writeln!(
+                output,
+                "  la {}, {}",
+                reg,
+                &program_info.borrow_value(value).name().as_ref().unwrap()[1..]
+            )
+            .unwrap();
+            return reg;
+        }
+
         //查询是否已经有reg
         for (i, user) in self.reg_user.iter().enumerate() {
             if let Some(v) = user {
