@@ -93,25 +93,38 @@ impl GenerateAsm for koopa::ir::FunctionData {
 
         //为每个元素分配栈偏移量
         let mut now_stack_offset = 0;
-        for (&bb, node) in self.layout().bbs() {
-            for &inst in node.insts().keys() {
-                let value_data = self.dfg().value(inst);
-                let value_type = value_data.ty();
-                if value_type.is_unit() {
-                    //没有返回值，不需要分配栈空间
-                    continue;
-                }
-            }
-        }
 
         // 遍历基本块列表
         for (&bb, node) in self.layout().bbs() {
             // 一些必要的处理
+            let bb_data = self.dfg().bb(bb);
+            let block_name = bb_data.name().clone().unwrap();
+            if block_name != "%entry".to_owned() {
+                writeln!(output, "{}:", &block_name[1..]).unwrap();
+            }
+
             // 遍历指令列表
             for &inst in node.insts().keys() {
                 let value_data = self.dfg().value(inst);
                 // 访问指令
                 match value_data.kind() {
+                    ValueKind::Branch(br_inst) => {
+                        let cond = br_inst.cond();
+                        let true_bb_name = self.dfg().bb(br_inst.true_bb()).name().clone().unwrap();
+                        let false_bb_name =
+                            self.dfg().bb(br_inst.false_bb()).name().clone().unwrap();
+                        let reg_cond = get_reg(output, self, &mut func_info, cond);
+                        writeln!(output, "  bnez {}, {}", reg_cond, &true_bb_name[1..]).unwrap();
+                        writeln!(output, "  j {}", &false_bb_name[1..]).unwrap();
+                        free_reg(self, &mut func_info, cond);
+                    }
+                    ValueKind::Jump(jump_inst) => {
+                        // 处理 jump 指令
+                        let target_bb = jump_inst.target();
+                        let target_data = self.dfg().bb(target_bb);
+                        let target_name = target_data.name().clone().unwrap();
+                        writeln!(output, "  j {}", &target_name[1..]).unwrap();
+                    }
                     ValueKind::Return(ret_inst) => {
                         // 处理 ret 指令
                         match ret_inst.value() {
@@ -135,8 +148,6 @@ impl GenerateAsm for koopa::ir::FunctionData {
                             None => {}
                         }
 
-                        assert!((now_stack_offset - func_info.stack_size).abs() < 16); //差值应该小于16
-                                                                                       //恢复栈指针
                         func_info.reset_sp(output);
                         writeln!(output, "  ret").unwrap();
                     }
@@ -279,11 +290,12 @@ impl GenerateAsm for koopa::ir::FunctionData {
                         free_reg(self, &mut func_info, inst);
                     }
                     // 其他种类暂时遇不到
-                    _ => {
-                        panic!("未知指令")
-                    }
+                    _ => {}
                 }
             }
         }
+
+        assert!((now_stack_offset - func_info.stack_size).abs() < 16); //差值应该小于16
+                                                                       //恢复栈指针
     }
 }
