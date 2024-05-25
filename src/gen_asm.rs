@@ -155,28 +155,44 @@ impl GenerateAsm for koopa::ir::FunctionData {
             for &inst in node.insts().keys() {
                 let value_data = self.dfg().value(inst);
                 let value_type = value_data.ty();
-                if let ValueKind::Call(call_inst) = value_data.kind() {
-                    let mut now_params_size = 0;
-                    let mut now_params_cnt = 0;
-                    ra_size = 4; //有函数调用，需要保存ra
-                    for &param in call_inst.args() {
-                        now_params_cnt += 1;
-                        if now_params_cnt > 8 {
-                            now_params_size += self.dfg().value(param).ty().size() as i32;
+                match value_data.kind() {
+                    ValueKind::Call(call_inst) => {
+                        let mut now_params_size = 0;
+                        let mut now_params_cnt = 0;
+                        ra_size = 4; //有函数调用，需要保存ra
+                        for &param in call_inst.args() {
+                            now_params_cnt += 1;
+                            if now_params_cnt > 8 {
+                                now_params_size += self.dfg().value(param).ty().size() as i32;
+                            }
+                        }
+                        if now_params_size > param_size {
+                            param_size = now_params_size;
+                        }
+                        local_var_size += value_type.size() as i32;
+                    }
+                    ValueKind::Alloc(_) => {
+                        let alloc_size = match value_type.kind() {
+                            TypeKind::Pointer(base) => base.size(),
+                            _ => unreachable!(),
+                        };
+                        //alloc内存
+                        local_var_size += alloc_size as i32;
+                        //指针也要分内存
+                        local_var_size += value_type.size() as i32;
+                    }
+                    _ => {
+                        if value_type.is_unit() {
+                            //没有返回值，不需要分配栈空间
+                            continue;
+                        } else {
+                            //有返回值，需要分配栈空间
+                            local_var_size += value_type.size() as i32;
                         }
                     }
-                    if now_params_size > param_size {
-                        param_size = now_params_size;
-                    }
                 }
-                if value_type.is_unit() {
-                    //没有返回值，不需要分配栈空间
-                    continue;
-                }
-                local_var_size += value_type.size() as i32;
             }
         }
-
         //计算sp偏移量并对齐16
         func_info.stack_size = ra_size + local_var_size + param_size;
         func_info.stack_size = (func_info.stack_size + 15) & !15; //check?
@@ -227,6 +243,84 @@ impl GenerateAsm for koopa::ir::FunctionData {
                 let value_data = self.dfg().value(inst);
                 // 访问指令
                 match value_data.kind() {
+                    ValueKind::GetElemPtr(getelmprt_inst) => {
+                        let index = getelmprt_inst.index();
+                        let src_value = getelmprt_inst.src();
+                        let src_type = self.dfg().value(src_value).ty();
+
+                        //偏移量
+                        let reg_index = get_reg(output, self, &mut func_info, index, program_info);
+                        let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
+
+                        //对应数组类型大小
+                        let src_size = src_type.size();
+                        let reg_size = func_info.get_reg_i32(output, src_size as i32);
+
+                        //把index乘以src_size存在reg_ret，因为另外两个都有可能是x0
+                        writeln!(output, "  mul {}, {}, {}", reg_ret, reg_index, reg_size).unwrap();
+                        func_info.free_reg(UserKind::Tmpi32(src_size as i32));
+                        free_reg(self, &mut func_info, index);
+
+                        //基地址
+                        let reg_src =
+                            get_reg(output, self, &mut func_info, src_value, program_info);
+
+                        writeln!(output, "  add {}, {}, {}", reg_ret, reg_src, reg_ret).unwrap();
+
+                        free_reg(self, &mut func_info, src_value);
+
+                        func_info.new_var(output, inst, now_stack_offset, program_info);
+                        now_stack_offset += value_data.ty().size() as i32;
+                        free_reg(self, &mut func_info, inst);
+                    }
+
+                    ValueKind::Alloc(_) => {
+                        // 处理 alloc 指令
+                        let value_type = value_data.ty();
+                        let alloc_size = match value_type.kind() {
+                            TypeKind::Pointer(base) => base.size(),
+                            _ => unreachable!(),
+                        };
+                        let data_offset = now_stack_offset + value_data.ty().size() as i32;
+                        let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
+                        let offset_reg = func_info.get_reg_i32(output, data_offset);
+                        writeln!(output, "  add {}, sp, {}", reg_ret, offset_reg).unwrap();
+                        func_info.free_reg(UserKind::Tmpi32(data_offset));
+
+                        func_info.new_var(output, inst, now_stack_offset, program_info);
+                        //加上指针的偏移
+                        now_stack_offset += value_data.ty().size() as i32;
+                        //加上指针指向内存位置的偏移
+                        now_stack_offset += alloc_size as i32;
+                        free_reg(self, &mut func_info, inst);
+                    }
+
+                    ValueKind::Load(load_inst) => {
+                        // 处理 load 指令
+                        let addr = load_inst.src();
+
+                        let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
+
+                        let addr_reg = func_info.get_reg(output, addr, program_info);
+                        writeln!(output, "  lw {}, 0({})", reg_ret, addr_reg).unwrap();
+                        free_reg(self, &mut func_info, addr);
+
+                        func_info.new_var(output, inst, now_stack_offset, program_info);
+                        now_stack_offset += value_data.ty().size() as i32;
+                        free_reg(self, &mut func_info, inst);
+                    }
+
+                    ValueKind::Store(store_inst) => {
+                        // 处理 store 指令
+                        let addr = store_inst.dest();
+                        let value = store_inst.value();
+                        let reg_val = get_reg(output, self, &mut func_info, value, program_info);
+
+                        let addr_reg = func_info.get_reg(output, addr, program_info);
+                        writeln!(output, "  sw {}, 0({})", reg_val, addr_reg).unwrap();
+                        free_reg(self, &mut func_info, addr);
+                        free_reg(self, &mut func_info, value);
+                    }
                     ValueKind::Call(call_inst) => {
                         let mut now_params_offset = 0;
                         for (i, &param) in call_inst.args().iter().enumerate() {
@@ -315,53 +409,12 @@ impl GenerateAsm for koopa::ir::FunctionData {
                         if ra_size > 0 {
                             //恢复ra
                             let addr_reg = func_info.get_reg_i32(output, ra_offset);
-                            writeln!(output, "  li {}, {}", addr_reg, ra_offset).unwrap();
                             writeln!(output, "  add {}, sp, {}", addr_reg, addr_reg).unwrap();
                             writeln!(output, "  lw ra, 0({})", addr_reg).unwrap();
                             func_info.free_reg(UserKind::Tmpi32(ra_offset));
                         }
                         func_info.reset_sp(output);
                         writeln!(output, "  ret").unwrap();
-                    }
-                    ValueKind::Alloc(_) => {
-                        // 处理 alloc 指令
-
-                        func_info.alloc(output, inst, now_stack_offset);
-                        now_stack_offset += value_data.ty().size() as i32;
-                    }
-                    ValueKind::Load(load_inst) => {
-                        // 处理 load 指令
-                        let addr = load_inst.src();
-
-                        let reg_ret = get_reg(output, self, &mut func_info, inst, program_info);
-                        if addr.is_global() {
-                            //全局变量
-                            let addr_reg = func_info.get_reg(output, addr, program_info);
-                            writeln!(output, "  lw {}, 0({})", reg_ret, addr_reg).unwrap();
-                            free_reg(self, &mut func_info, addr);
-                        } else {
-                            let offset = *func_info.name_to_offset.get(&addr).unwrap();
-                            load_by_offset(output, &mut func_info, &reg_ret, offset);
-                        }
-                        func_info.new_var(output, inst, now_stack_offset, program_info);
-                        now_stack_offset += value_data.ty().size() as i32;
-                        free_reg(self, &mut func_info, inst);
-                    }
-                    ValueKind::Store(store_inst) => {
-                        // 处理 store 指令
-                        let addr = store_inst.dest();
-                        let value = store_inst.value();
-                        let reg_val = get_reg(output, self, &mut func_info, value, program_info);
-                        //TODO:这里应该由IR保证保证store的来源是局部符号
-                        if addr.is_global() {
-                            let addr_reg = func_info.get_reg(output, addr, program_info);
-                            writeln!(output, "  sw {}, 0({})", reg_val, addr_reg).unwrap();
-                            free_reg(self, &mut func_info, addr);
-                        } else {
-                            let offset = *func_info.name_to_offset.get(&addr).unwrap();
-                            store_by_offset(output, &mut func_info, &reg_val, offset);
-                        }
-                        free_reg(self, &mut func_info, value);
                     }
                     ValueKind::Binary(bin_inst) => {
                         // 处理二元运算

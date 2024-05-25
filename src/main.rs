@@ -51,6 +51,7 @@ fn main() -> Result<()> {
     //let my_koppa_ir = format!("{}", ast);
 
     let mut output_file = File::create(output)?;
+    koopa::ir::types::Type::set_ptr_size(4); //TODO 设置指针大小
 
     match mode.as_str() {
         "-koopa" => {

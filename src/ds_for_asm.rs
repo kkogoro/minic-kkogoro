@@ -40,10 +40,6 @@ impl GenerateAsmInfo {
     pub fn set_offset(&mut self, value: Value, offset: i32) {
         self.name_to_offset.insert(value, offset);
     }
-    ///在栈上分配alloc
-    pub fn alloc(&mut self, output: &mut File, value: Value, offset: i32) {
-        self.set_offset(value, offset);
-    }
     ///在栈上分配变量，并且将inst的运算结果存到栈上
     pub fn new_var(
         &mut self,
