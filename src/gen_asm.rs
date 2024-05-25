@@ -279,7 +279,9 @@ impl GenerateAsm for koopa::ir::FunctionData {
                         free_reg(self, &mut func_info, inst);
                     }
                     // 其他种类暂时遇不到
-                    _ => {}
+                    _ => {
+                        panic!("未知指令")
+                    }
                 }
             }
         }
